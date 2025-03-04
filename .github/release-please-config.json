@@ -1,0 +1,45 @@
+{
+    "packages": {
+        ".": {
+            "release-type": "python",
+            "package-name": "sample_python_project",
+            "changelog-path": "CHANGELOG.md",
+            "bump-minor-pre-major": true,
+            "bump-patch-for-minor-pre-major": true,
+            "draft": false,
+            "prerelease": false,
+            "changelog-sections": [
+                {
+                    "type": "feat",
+                    "section": "Features",
+                    "hidden": false
+                },
+                {
+                    "type": "fix",
+                    "section": "Bug Fixes",
+                    "hidden": false
+                },
+                {
+                    "type": "docs",
+                    "section": "Documentation",
+                    "hidden": false
+                },
+                {
+                    "type": "chore",
+                    "section": "Miscellaneous",
+                    "hidden": true
+                },
+                {
+                    "type": "refactor",
+                    "section": "Refactoring",
+                    "hidden": false
+                },
+                {
+                    "type": "perf",
+                    "section": "Performance Improvements",
+                    "hidden": false
+                }
+            ]
+        }
+    }
+}

@@ -1,0 +1,95 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: .github/release-please-config.json
+          manifest-file: .github/release-please-manifest.json
+
+      # Checkout code when a release is created
+      - uses: actions/checkout@v4
+        if: ${{ steps.release.outputs.release_created }}
+
+      # Set up Python when a release is created
+      - name: Set up Python
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      # Install dependencies when a release is created
+      - name: Install dependencies
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine wheel setuptools
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # Build the Python package
+      - name: Build package
+        if: ${{ steps.release.outputs.release_created }}
+        run: python -m build
+
+      # Publish the Python package to PyPI
+      - name: Publish package to PyPI
+        if: ${{ steps.release.outputs.release_created }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip_existing: true
+
+      # Create source code archives when a release is created
+      - name: Create Source Code Archives
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          # Create a zip archive of the source code
+          zip -r sample_python_project-${{ steps.release.outputs.tag_name }}.zip . -x "__pycache__/*" "*.pyc" "*.pyo" "*.pyd" ".git/*" "*.egg-info/*" "build/*" "dist/*" "venv/*" ".pytest_cache/*"
+
+          # Create a tar.gz archive of the source code
+          tar --exclude="./__pycache__" --exclude="./*.pyc" --exclude="./*.pyo" --exclude="./*.pyd" --exclude="./.git" --exclude="./*.egg-info" --exclude="./build" --exclude="./dist" --exclude="./venv" --exclude="./.pytest_cache" -czf sample_python_project-${{ steps.release.outputs.tag_name }}.tar.gz .
+
+      # Upload release artifacts when a release is created
+      - name: Upload Release Artifacts
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Upload source code archives
+          gh release upload ${{ steps.release.outputs.tag_name }} sample_python_project-${{ steps.release.outputs.tag_name }}.zip
+          gh release upload ${{ steps.release.outputs.tag_name }} sample_python_project-${{ steps.release.outputs.tag_name }}.tar.gz
+
+          # Upload assets if the directory exists
+          if [ -d "assets" ]; then
+            gh release upload ${{ steps.release.outputs.tag_name }} assets/*
+          else
+            echo "No assets directory found. Skipping assets upload."
+          fi
+
+          # Upload dist files if the directory exists
+          if [ -d "dist" ]; then
+            gh release upload ${{ steps.release.outputs.tag_name }} dist/*
+          else
+            echo "No dist directory found. Skipping dist upload."
+          fi
+
+          # Upload any other important directories if they exist
+          for dir in "public" "build" "docs"; do
+            if [ -d "$dir" ]; then
+              echo "Uploading files from $dir directory"
+              gh release upload ${{ steps.release.outputs.tag_name }} $dir/*
+            fi
+          done
