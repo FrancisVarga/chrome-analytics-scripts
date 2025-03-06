@@ -5,51 +5,52 @@ These rules define the workflow and maintenance practices for this project:
 1. Create a plan first and then update the todo.md
 2. Keep plan and todo always up to date
 3. Add or remove .clinerules rules or actions if necessary
+4. Ignore all linter errors (HIGH PRIORITY)
 
 ## Frontend Standards
 
-4. Ensure responsive design for all screen sizes and devices
-5. Maintain semantic HTML structure for accessibility and SEO
-6. Follow a consistent naming convention for CSS classes (BEM recommended)
-7. Optimize images and assets for web performance
-8. Implement proper error handling and form validation
-9. Ensure cross-browser compatibility
-10. Follow security best practices (sanitize inputs, prevent XSS, etc.)
-11. Use progressive enhancement where possible
-12. Implement proper caching strategies
-13. Keep JavaScript modular and maintainable
-14. Document code with clear comments and documentation
-15. Ensure WCAG accessibility compliance
-16. Implement proper SEO meta tags and structured data
-17. Use version control effectively with meaningful commit messages
-18. Conduct regular code reviews and testing
-19. Optimize for Core Web Vitals (LCP, FID, CLS)
-20. Implement proper logging for debugging and monitoring
+5. Ensure responsive design for all screen sizes and devices
+6. Maintain semantic HTML structure for accessibility and SEO
+7. Follow a consistent naming convention for CSS classes (BEM recommended)
+8. Optimize images and assets for web performance
+9. Implement proper error handling and form validation
+10. Ensure cross-browser compatibility
+11. Follow security best practices (sanitize inputs, prevent XSS, etc.)
+12. Use progressive enhancement where possible
+13. Implement proper caching strategies
+14. Keep JavaScript modular and maintainable
+15. Document code with clear comments and documentation
+16. Ensure WCAG accessibility compliance
+17. Implement proper SEO meta tags and structured data
+18. Use version control effectively with meaningful commit messages
+19. Conduct regular code reviews and testing
+20. Optimize for Core Web Vitals (LCP, FID, CLS)
+21. Implement proper logging for debugging and monitoring
 
 ## Backend Standards
 
-21. Always use Swagger or OpenAPI for API documentation
-22. Always implement best API security practices (authentication, authorization, input validation)
-23. Keep code as simple as possible
-24. Use appropriate design patterns for scalability and maintainability
-25. Implement comprehensive error handling and logging
-26. Follow RESTful API design principles
-27. Optimize database queries and connections
-28. Implement proper rate limiting and request throttling
-29. Use environment variables for configuration
-30. Implement proper data validation and sanitization
+22. Always use Swagger or OpenAPI for API documentation
+23. Always implement best API security practices (authentication, authorization, input validation)
+24. Keep code as simple as possible
+25. Use appropriate design patterns for scalability and maintainability
+26. Implement comprehensive error handling and logging
+27. Follow RESTful API design principles
+28. Optimize database queries and connections
+29. Implement proper rate limiting and request throttling
+30. Use environment variables for configuration
+31. Implement proper data validation and sanitization
 
 ## General Standards
 
-31. Follow KISS (Keep It Simple, Stupid) principles
-32. Always keep code and solutions as simple as possible
-33. Add thorough documentation in the code
-34. Use consistent coding style and formatting
-35. Write clean, readable, and maintainable code
-36. Follow DRY (Don't Repeat Yourself) principles
-37. Conduct regular code reviews
-38. Write unit and integration tests
-39. Refactor code when necessary
-40. Stay updated with best practices and security vulnerabilities
-41. Follow Conventional Commits for commit messages
-42. Always keep .gitignore updated
+32. Follow KISS (Keep It Simple, Stupid) principles
+33. Always keep code and solutions as simple as possible
+34. Add thorough documentation in the code
+35. Use consistent coding style and formatting
+36. Write clean, readable, and maintainable code
+37. Follow DRY (Don't Repeat Yourself) principles
+38. Conduct regular code reviews
+39. Write unit and integration tests
+40. Refactor code when necessary
+41. Stay updated with best practices and security vulnerabilities
+42. Follow Conventional Commits for commit messages
+43. Always keep .gitignore updated
