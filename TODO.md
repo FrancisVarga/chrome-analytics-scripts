@@ -29,6 +29,8 @@
   - [ ] Add support for filtering and sorting
 - [ ] Develop MongoDB client for efficient data storage
 - [ ] Create S3 Parquet storage module
+  - [ ] Uncomment pandas, pyarrow, fastparquet, dask, and distributed dependencies in requirements.txt
+  - [ ] Install Rust if needed for building cramjam (fastparquet dependency)
   - [ ] Implement optimized file size and compression settings
   - [ ] Add partitioning by date for efficient querying
 - [ ] Build data processor for transforming NocoDB data to analytics format
@@ -120,6 +122,10 @@
 
 ### High Priority
 
+- [x] Set up pre-commit hook for requirements.txt synchronization with uv
+  - [x] Create pre-commit script to sync dependencies
+  - [x] Add installation scripts for Windows and Unix-like systems
+  - [x] Update documentation with installation instructions
 - [ ] Set up environment configuration with .env support
   - [ ] Add configuration validation
   - [ ] Implement secure secrets management

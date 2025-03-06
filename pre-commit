@@ -1,0 +1,82 @@
+#!/bin/sh
+# Pre-commit hook to sync requirements.txt with uv and save current dependencies
+
+# Exit on error
+set -e
+
+echo "Running pre-commit hook to sync requirements.txt with uv..."
+
+# Check if any Python files or dependency files have changed
+if git diff --cached --name-only | grep -E '\.py$|requirements\.txt|pyproject\.toml|setup\.py' > /dev/null; then
+    echo "Python or dependency files changed. Syncing requirements.txt..."
+    
+    # Save the current state of requirements.txt
+    if [ -f requirements.txt ]; then
+        cp requirements.txt requirements.txt.bak
+    fi
+    
+    # Export dependencies using uv
+    uv pip freeze > requirements.txt.new
+    
+    # Process the new requirements file to maintain comments and structure
+    python -c "
+import re
+
+# Read the original file with comments
+original_content = ''
+try:
+    with open('requirements.txt.bak', 'r') as f:
+        original_content = f.read()
+except:
+    pass
+
+# Read the new requirements
+with open('requirements.txt.new', 'r') as f:
+    new_reqs = {line.split('==')[0]: line.strip() for line in f if line.strip() and not line.startswith('#')}
+
+# Process the original file, updating versions but keeping comments and structure
+if original_content:
+    updated_lines = []
+    for line in original_content.splitlines():
+        if line.strip() and not line.startswith('#'):
+            pkg_name = re.split('>=|==|<=|~=|!=|<|>', line.strip())[0].strip()
+            if pkg_name in new_reqs:
+                updated_lines.append(new_reqs[pkg_name])
+                del new_reqs[pkg_name]
+            else:
+                updated_lines.append(line)
+        else:
+            updated_lines.append(line)
+    
+    # Add any new packages that weren't in the original file
+    if new_reqs:
+        if updated_lines and updated_lines[-1].strip():
+            updated_lines.append('')
+        updated_lines.append('# New dependencies added automatically')
+        for pkg in sorted(new_reqs.values()):
+            updated_lines.append(pkg)
+    
+    with open('requirements.txt', 'w') as f:
+        f.write('\n'.join(updated_lines))
+else:
+    # If no original file with comments, just use the new file
+    with open('requirements.txt.new', 'r') as f:
+        with open('requirements.txt', 'w') as out:
+            out.write(f.read())
+"
+    
+    # Clean up temporary files
+    rm -f requirements.txt.bak requirements.txt.new
+    
+    # Check if requirements.txt was modified
+    if git diff --name-only | grep -q "requirements.txt"; then
+        echo "requirements.txt was updated. Adding to git staging area..."
+        git add requirements.txt
+    else
+        echo "No changes to requirements.txt detected."
+    fi
+else
+    echo "No Python or dependency files changed. Skipping requirements.txt sync."
+fi
+
+exit 0
