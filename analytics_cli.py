@@ -43,6 +43,7 @@ def main():
     collect_parser.add_argument('--app-id', type=str, help='App ID for filtering conversations')
     collect_parser.add_argument('--batch-size', type=int, default=100, help='Batch size for processing')
     collect_parser.add_argument('--no-mongodb', action='store_true', help='Skip MongoDB storage')
+    collect_parser.add_argument('--no-parquet', action='store_true', help='Skip Parquet storage')
     collect_parser.add_argument('--resume', action='store_true', help='Resume from last processed conversation')
     collect_parser.add_argument('--state-file', type=str, default='processing_state.json', help='Path to state file')
     collect_parser.add_argument('--use-s3-state', action='store_true', help='Use S3 for state tracking')
@@ -77,6 +78,9 @@ def main():
             
         if args.no_mongodb:
             sys.argv.append('--no-mongodb')
+            
+        if args.no_parquet:
+            sys.argv.append('--no-parquet')
             
         if args.resume:
             sys.argv.append('--resume')

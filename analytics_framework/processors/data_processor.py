@@ -192,22 +192,81 @@ class DataProcessor:
         categories = []
         content_lower = content.lower()
         
-        # Define topic keywords
+        # Define topic keywords with weighted importance
         topic_keywords = {
-            "pricing": ["price", "cost", "pricing", "payment", "subscription", "billing", "fee"],
-            "technical_issue": ["error", "bug", "issue", "problem", "crash", "not working", "broken"],
-            "feature_request": ["feature", "add", "implement", "enhancement", "improve", "suggestion"],
-            "account": ["account", "login", "password", "sign in", "sign up", "register"],
-            "general_inquiry": ["how to", "what is", "explain", "help", "guide", "tutorial"],
-            "feedback": ["feedback", "review", "opinion", "think", "suggest"]
+            "pricing": {
+                "primary": ["price", "cost", "pricing", "payment", "subscription", "billing", "fee"],
+                "secondary": ["discount", "plan", "trial", "free", "premium", "upgrade", "downgrade", "charge"],
+                "weight": 1.0
+            },
+            "technical_issue": {
+                "primary": ["error", "bug", "issue", "problem", "crash", "not working", "broken", "fail"],
+                "secondary": ["fix", "resolve", "solution", "troubleshoot", "debug", "repair", "malfunction", "glitch"],
+                "weight": 1.0
+            },
+            "feature_request": {
+                "primary": ["feature", "add", "implement", "enhancement", "improve", "suggestion"],
+                "secondary": ["functionality", "capability", "option", "ability", "support for", "integration"],
+                "weight": 0.9
+            },
+            "account": {
+                "primary": ["account", "login", "password", "sign in", "sign up", "register", "profile"],
+                "secondary": ["username", "email", "authentication", "credentials", "forgot", "reset", "verification"],
+                "weight": 0.9
+            },
+            "general_inquiry": {
+                "primary": ["how to", "what is", "explain", "help", "guide", "tutorial", "documentation"],
+                "secondary": ["instructions", "steps", "process", "procedure", "information", "details", "clarify"],
+                "weight": 0.8
+            },
+            "feedback": {
+                "primary": ["feedback", "review", "opinion", "think", "suggest", "recommendation"],
+                "secondary": ["impression", "experience", "satisfaction", "dissatisfaction", "rating", "evaluation"],
+                "weight": 0.8
+            },
+            "data_privacy": {
+                "primary": ["privacy", "data", "gdpr", "ccpa", "personal information", "consent", "opt-out"],
+                "secondary": ["collect", "store", "share", "delete", "retention", "policy", "compliance"],
+                "weight": 1.0
+            },
+            "integration": {
+                "primary": ["integrate", "integration", "connect", "api", "webhook", "sync", "import", "export"],
+                "secondary": ["third-party", "platform", "service", "tool", "compatibility", "connection"],
+                "weight": 0.9
+            }
         }
         
-        # Check for each topic
-        for topic, keywords in topic_keywords.items():
-            if any(keyword in content_lower for keyword in keywords):
-                # Calculate confidence based on keyword frequency
-                keyword_count = sum(content_lower.count(keyword) for keyword in keywords)
-                confidence = min(0.5 + (keyword_count * 0.1), 0.95)
+        # Context-aware scoring
+        topic_scores = {}
+        
+        for topic, keyword_data in topic_keywords.items():
+            # Calculate primary keyword matches (higher weight)
+            primary_matches = [keyword for keyword in keyword_data["primary"] if keyword in content_lower]
+            primary_count = sum(content_lower.count(keyword) for keyword in primary_matches)
+            
+            # Calculate secondary keyword matches (lower weight)
+            secondary_matches = [keyword for keyword in keyword_data["secondary"] if keyword in content_lower]
+            secondary_count = sum(content_lower.count(keyword) for keyword in secondary_matches)
+            
+            # Calculate weighted score
+            topic_weight = keyword_data["weight"]
+            score = (primary_count * 0.7 + secondary_count * 0.3) * topic_weight
+            
+            # Consider context from conversation metadata
+            if conversation.get("name") and any(keyword in conversation["name"].lower() for keyword in keyword_data["primary"]):
+                score += 0.5
+                
+            if score > 0:
+                topic_scores[topic] = score
+        
+        # Normalize scores and create categories
+        if topic_scores:
+            max_score = max(topic_scores.values())
+            
+            for topic, score in topic_scores.items():
+                # Calculate confidence (normalized score with minimum threshold)
+                normalized_score = score / max_score
+                confidence = min(max(0.6, 0.5 + (normalized_score * 0.4)), 0.95)
                 
                 categories.append({
                     "category_id": f"{conversation['id']}_topic_{topic}",
@@ -238,23 +297,118 @@ class DataProcessor:
         categories = []
         content_lower = content.lower()
         
-        # Define intent patterns
+        # Define intent patterns with weights
         intent_patterns = {
-            "question": [r"\?$", r"^(what|how|why|when|where|who|can|could|would|will|is|are|do|does|did)"],
-            "request": [r"^(please|can you|could you|would you|will you|i need|i want|i would like)"],
-            "complaint": [r"(not working|doesn't work|isn't working|broken|issue|problem|bug|error|crash|disappointed|unhappy|frustrated)"],
-            "feedback": [r"(feedback|review|opinion|think|suggest|improve|enhancement)"],
-            "greeting": [r"^(hi|hello|hey|greetings)"],
-            "gratitude": [r"(thank|thanks|appreciate|grateful)"],
-            "farewell": [r"(bye|goodbye|see you|talk to you later)"]
+            "question": {
+                "patterns": [
+                    r"\?$", 
+                    r"^(what|how|why|when|where|who|can|could|would|will|is|are|do|does|did)",
+                    r"(tell me|explain|describe|elaborate on|clarify)"
+                ],
+                "weight": 1.0
+            },
+            "request": {
+                "patterns": [
+                    r"^(please|can you|could you|would you|will you|i need|i want|i would like|i'd like)",
+                    r"(help me|assist me|support me|guide me)",
+                    r"(create|update|delete|modify|change|add|remove)"
+                ],
+                "weight": 0.9
+            },
+            "complaint": {
+                "patterns": [
+                    r"(not working|doesn't work|isn't working|broken|issue|problem|bug|error|crash)",
+                    r"(disappointed|unhappy|frustrated|annoyed|upset|dissatisfied)",
+                    r"(failed|failure|poor|bad|terrible|awful|horrible)"
+                ],
+                "weight": 1.0
+            },
+            "feedback": {
+                "patterns": [
+                    r"(feedback|review|opinion|think|suggest|improve|enhancement)",
+                    r"(like|love|enjoy|appreciate|prefer)",
+                    r"(don't like|dislike|hate|not a fan)"
+                ],
+                "weight": 0.9
+            },
+            "greeting": {
+                "patterns": [
+                    r"^(hi|hello|hey|greetings|good morning|good afternoon|good evening)",
+                    r"(nice to meet you|pleasure to meet you)"
+                ],
+                "weight": 0.7
+            },
+            "gratitude": {
+                "patterns": [
+                    r"(thank|thanks|appreciate|grateful|much appreciated)",
+                    r"(you've been helpful|you're the best|excellent service)"
+                ],
+                "weight": 0.8
+            },
+            "farewell": {
+                "patterns": [
+                    r"(bye|goodbye|see you|talk to you later|until next time)",
+                    r"(have a good day|have a nice day|have a great day)"
+                ],
+                "weight": 0.7
+            },
+            "troubleshooting": {
+                "patterns": [
+                    r"(troubleshoot|diagnose|debug|fix|resolve|solve)",
+                    r"(steps to|how to fix|how to resolve|how to solve)",
+                    r"(tried|attempted|not working after)"
+                ],
+                "weight": 1.0
+            },
+            "purchase_intent": {
+                "patterns": [
+                    r"(buy|purchase|subscribe|order|get|acquire)",
+                    r"(how much|price|cost|fee|subscription|payment)",
+                    r"(discount|offer|deal|promotion|coupon)"
+                ],
+                "weight": 1.0
+            }
         }
         
-        # Check for each intent
-        for intent, patterns in intent_patterns.items():
-            if any(re.search(pattern, content_lower) for pattern in patterns):
-                # Calculate confidence based on pattern matches
-                match_count = sum(1 for pattern in patterns if re.search(pattern, content_lower))
-                confidence = min(0.6 + (match_count * 0.1), 0.95)
+        # Context-aware scoring
+        intent_scores = {}
+        
+        for intent, data in intent_patterns.items():
+            patterns = data["patterns"]
+            weight = data["weight"]
+            
+            # Count pattern matches
+            match_count = sum(1 for pattern in patterns if re.search(pattern, content_lower))
+            
+            # Calculate weighted score
+            if match_count > 0:
+                # More sophisticated scoring that considers:
+                # - Number of matches relative to total patterns
+                # - Position of matches (beginning of message is more important)
+                # - Length of content (shorter content with matches has higher relevance)
+                pattern_coverage = match_count / len(patterns)
+                position_factor = 1.0
+                
+                # Check if any pattern matches at the beginning
+                if any(re.match(pattern, content_lower) for pattern in patterns):
+                    position_factor = 1.2
+                
+                # Length factor (shorter messages with matches are more focused)
+                length_factor = 1.0
+                if len(content_lower) < 50 and match_count > 0:
+                    length_factor = 1.1
+                
+                score = pattern_coverage * position_factor * length_factor * weight
+                intent_scores[intent] = score
+        
+        # Normalize scores and create categories
+        if intent_scores:
+            max_score = max(intent_scores.values())
+            
+            for intent, score in intent_scores.items():
+                # Calculate confidence (normalized score with minimum threshold)
+                normalized_score = score / max_score
+                confidence = min(max(0.6, 0.5 + (normalized_score * 0.4)), 0.95)
                 
                 categories.append({
                     "category_id": f"{conversation['id']}_intent_{intent}",
@@ -284,33 +438,146 @@ class DataProcessor:
         """
         content_lower = content.lower()
         
-        # Define sentiment keywords
-        positive_keywords = [
-            "good", "great", "excellent", "amazing", "awesome", "fantastic",
-            "wonderful", "happy", "pleased", "satisfied", "love", "like",
-            "thanks", "thank you", "helpful", "appreciate", "grateful"
+        # Define sentiment lexicons with weights
+        sentiment_lexicon = {
+            "positive": {
+                "strong": [
+                    "excellent", "amazing", "awesome", "fantastic", "outstanding",
+                    "exceptional", "wonderful", "brilliant", "superb", "perfect",
+                    "love", "delighted", "thrilled", "impressed"
+                ],
+                "moderate": [
+                    "good", "great", "happy", "pleased", "satisfied", "like",
+                    "helpful", "appreciate", "grateful", "nice", "enjoy",
+                    "thank you", "thanks", "positive", "well done", "effective"
+                ],
+                "weak": [
+                    "ok", "okay", "fine", "alright", "decent", "acceptable",
+                    "adequate", "satisfactory", "sufficient", "reasonable"
+                ]
+            },
+            "negative": {
+                "strong": [
+                    "terrible", "awful", "horrible", "dreadful", "abysmal",
+                    "hate", "furious", "outraged", "disgusted", "appalled",
+                    "unacceptable", "useless", "pathetic", "disaster"
+                ],
+                "moderate": [
+                    "bad", "poor", "disappointing", "frustrated", "angry",
+                    "unhappy", "dissatisfied", "dislike", "annoyed", "irritated",
+                    "problem", "issue", "error", "bug", "crash", "not working", "broken"
+                ],
+                "weak": [
+                    "not great", "could be better", "mediocre", "subpar",
+                    "underwhelming", "lacking", "insufficient", "not ideal"
+                ]
+            }
+        }
+        
+        # Negation words that can flip sentiment
+        negation_words = [
+            "not", "no", "never", "neither", "nor", "none", "nothing",
+            "nowhere", "hardly", "barely", "scarcely", "doesn't", "don't",
+            "didn't", "isn't", "aren't", "wasn't", "weren't", "hasn't",
+            "haven't", "hadn't", "won't", "wouldn't", "can't", "cannot",
+            "couldn't", "shouldn't"
         ]
         
-        negative_keywords = [
-            "bad", "poor", "terrible", "awful", "horrible", "disappointing",
-            "frustrated", "angry", "unhappy", "dissatisfied", "hate", "dislike",
-            "problem", "issue", "error", "bug", "crash", "not working", "broken"
+        # Intensifiers that strengthen sentiment
+        intensifiers = [
+            "very", "really", "extremely", "incredibly", "absolutely",
+            "completely", "totally", "utterly", "highly", "especially",
+            "particularly", "exceptionally", "remarkably", "decidedly",
+            "exceedingly", "immensely", "thoroughly", "entirely", "fully"
         ]
         
-        # Count sentiment keywords
-        positive_count = sum(content_lower.count(keyword) for keyword in positive_keywords)
-        negative_count = sum(content_lower.count(keyword) for keyword in negative_keywords)
+        # Calculate sentiment scores with context awareness
+        positive_score = 0
+        negative_score = 0
+        
+        # Split content into sentences for more accurate negation handling
+        sentences = re.split(r'[.!?]+', content_lower)
+        
+        for sentence in sentences:
+            words = sentence.split()
+            
+            # Check for negation in this sentence
+            has_negation = any(neg in words for neg in negation_words)
+            
+            # Check for intensifiers
+            intensifier_count = sum(1 for word in words if word in intensifiers)
+            intensifier_multiplier = 1.0 + (0.2 * intensifier_count)
+            
+            # Process positive sentiment
+            for strength, terms in sentiment_lexicon["positive"].items():
+                # Assign weight based on strength
+                if strength == "strong":
+                    weight = 3.0
+                elif strength == "moderate":
+                    weight = 2.0
+                else:  # weak
+                    weight = 1.0
+                
+                # Count occurrences
+                for term in terms:
+                    if term in sentence:
+                        count = sentence.count(term)
+                        
+                        # Apply negation (flips positive to negative)
+                        if has_negation:
+                            negative_score += count * weight * intensifier_multiplier
+                        else:
+                            positive_score += count * weight * intensifier_multiplier
+            
+            # Process negative sentiment
+            for strength, terms in sentiment_lexicon["negative"].items():
+                # Assign weight based on strength
+                if strength == "strong":
+                    weight = 3.0
+                elif strength == "moderate":
+                    weight = 2.0
+                else:  # weak
+                    weight = 1.0
+                
+                # Count occurrences
+                for term in terms:
+                    if term in sentence:
+                        count = sentence.count(term)
+                        
+                        # Apply negation (flips negative to positive)
+                        if has_negation:
+                            positive_score += count * weight * intensifier_multiplier
+                        else:
+                            negative_score += count * weight * intensifier_multiplier
+        
+        # Consider message length for normalization
+        content_length = len(content_lower)
+        length_factor = min(1.0, max(0.5, content_length / 500))
+        
+        # Normalize scores
+        positive_score *= length_factor
+        negative_score *= length_factor
         
         # Determine sentiment
-        if positive_count > negative_count:
+        if positive_score > negative_score * 1.2:  # Positive needs to be clearly stronger
             sentiment = "positive"
-            confidence = min(0.5 + ((positive_count - negative_count) * 0.1), 0.95)
-        elif negative_count > positive_count:
+            difference = positive_score - negative_score
+            confidence = min(0.6 + (difference * 0.05), 0.95)
+        elif negative_score > positive_score * 1.1:  # Negative is stronger
             sentiment = "negative"
-            confidence = min(0.5 + ((negative_count - positive_count) * 0.1), 0.95)
+            difference = negative_score - positive_score
+            confidence = min(0.6 + (difference * 0.05), 0.95)
         else:
-            sentiment = "neutral"
-            confidence = 0.7
+            # Mixed or neutral sentiment
+            if positive_score > 0 and negative_score > 0:
+                sentiment = "mixed"
+                # Lower confidence for mixed sentiment
+                total = positive_score + negative_score
+                balance = 1.0 - (abs(positive_score - negative_score) / total)
+                confidence = 0.5 + (balance * 0.3)
+            else:
+                sentiment = "neutral"
+                confidence = 0.7
         
         return [{
             "category_id": f"{conversation['id']}_sentiment_{sentiment}",

@@ -1,43 +1,26 @@
-"""Client for interacting with MongoDB for conversation analytics."""
+"""Base MongoDB client with common operations."""
 
 import logging
-import uuid
-from datetime import datetime
 from typing import Dict, List, Any, Optional, Union, Tuple
 
 from pymongo import MongoClient, UpdateOne, InsertOne, IndexModel
 from pymongo.errors import BulkWriteError, PyMongoError, DuplicateKeyError
 from pymongo.collection import Collection
 
-from ..config import (
-    MONGODB_URI,
-    MONGODB_DATABASE,
-    MONGODB_CONVERSATIONS_COLLECTION,
-    MONGODB_TRANSLATIONS_COLLECTION,
-    MONGODB_ANALYTICS_REPORTS_COLLECTION,
-    MONGODB_USER_ANALYTICS_COLLECTION
-)
-from ..models.mongodb_schema import (
-    CONVERSATION_ANALYTICS_INDEXES,
-    CONVERSATION_TRANSLATIONS_INDEXES,
-    ANALYTICS_REPORTS_INDEXES,
-    USER_ANALYTICS_INDEXES
-)
 
-
-class MongoDBClient:
-    """Client for interacting with MongoDB for conversation analytics."""
+class MongoDBBaseClient:
+    """Base client for MongoDB operations with common functionality."""
     
     def __init__(
         self,
-        uri: str = MONGODB_URI,
-        database: str = MONGODB_DATABASE,
+        uri: str,
+        database: str,
         connect_timeout_ms: int = 30000,
         socket_timeout_ms: int = 30000,
         max_pool_size: int = 100
     ):
         """
-        Initialize the MongoDB client.
+        Initialize the MongoDB base client.
         
         Args:
             uri: MongoDB connection URI
@@ -57,53 +40,7 @@ class MongoDBClient:
         self.db = self.client[database]
         self.logger = logging.getLogger(__name__)
         
-        # Collection references
-        self.conversations = self.db[MONGODB_CONVERSATIONS_COLLECTION]
-        self.translations = self.db[MONGODB_TRANSLATIONS_COLLECTION]
-        self.analytics_reports = self.db[MONGODB_ANALYTICS_REPORTS_COLLECTION]
-        self.user_analytics = self.db[MONGODB_USER_ANALYTICS_COLLECTION]
-        
-        # Initialize indexes
-        self._create_indexes()
-        
-        self.logger.info(f"MongoDB client initialized for database: {database}")
-    
-    def _create_indexes(self):
-        """Create indexes for all collections."""
-        try:
-            # Create indexes for conversations collection
-            self._create_collection_indexes(
-                self.conversations,
-                CONVERSATION_ANALYTICS_INDEXES,
-                "conversations"
-            )
-            
-            # Create indexes for translations collection
-            self._create_collection_indexes(
-                self.translations,
-                CONVERSATION_TRANSLATIONS_INDEXES,
-                "translations"
-            )
-            
-            # Create indexes for analytics reports collection
-            self._create_collection_indexes(
-                self.analytics_reports,
-                ANALYTICS_REPORTS_INDEXES,
-                "analytics_reports"
-            )
-            
-            # Create indexes for user analytics collection
-            self._create_collection_indexes(
-                self.user_analytics,
-                USER_ANALYTICS_INDEXES,
-                "user_analytics"
-            )
-            
-            self.logger.info("MongoDB indexes created successfully")
-        except PyMongoError as e:
-            self.logger.error(f"Error creating MongoDB indexes: {str(e)}")
-            # Don't raise the exception, as we want to continue even if index creation fails
-            # The application can still function without optimal indexes
+        self.logger.info(f"MongoDB base client initialized for database: {database}")
     
     def _create_collection_indexes(self, collection, indexes, collection_name):
         """
@@ -124,7 +61,9 @@ class MongoDBClient:
             # Create indexes
             result = collection.create_indexes(index_models)
             
-            self.logger.info(f"Created {len(result)} indexes for {collection_name} collection")
+            self.logger.info(
+                f"Created {len(result)} indexes for {collection_name} collection"
+            )
         except PyMongoError as e:
             self.logger.error(f"Error creating indexes for {collection_name}: {str(e)}")
     
@@ -169,7 +108,9 @@ class MongoDBClient:
             result = self.db[collection].insert_one(document)
             return str(result.inserted_id)
         except DuplicateKeyError as e:
-            self.logger.warning(f"Duplicate key error inserting document into {collection}: {str(e)}")
+            self.logger.warning(
+                f"Duplicate key error inserting document into {collection}: {str(e)}"
+            )
             # Extract the duplicate key from the error message
             # This is a bit hacky, but PyMongo doesn't provide a clean way to get the duplicate key
             error_message = str(e)
@@ -185,7 +126,12 @@ class MongoDBClient:
             self.logger.error(f"Error inserting document into {collection}: {str(e)}")
             raise
     
-    def insert_many(self, collection: str, documents: List[Dict[str, Any]], ordered: bool = False) -> List[str]:
+    def insert_many(
+        self, 
+        collection: str, 
+        documents: List[Dict[str, Any]], 
+        ordered: bool = False
+    ) -> List[str]:
         """
         Insert multiple documents into a collection.
         
@@ -205,7 +151,9 @@ class MongoDBClient:
             return [str(id) for id in result.inserted_ids]
         except BulkWriteError as bwe:
             # Handle partial success in bulk write operations
-            self.logger.warning(f"Bulk write error inserting documents into {collection}: {bwe.details}")
+            self.logger.warning(
+                f"Bulk write error inserting documents into {collection}: {bwe.details}"
+            )
             # Extract successfully inserted IDs
             inserted_ids = []
             if hasattr(bwe, 'details') and 'writeErrors' in bwe.details:
@@ -215,7 +163,9 @@ class MongoDBClient:
                     if i not in error_indices and '_id' in doc:
                         inserted_ids.append(str(doc['_id']))
             
-            self.logger.info(f"Inserted {len(inserted_ids)} documents successfully out of {len(documents)}")
+            self.logger.info(
+                f"Inserted {len(inserted_ids)} documents successfully out of {len(documents)}"
+            )
             
             # Re-raise the exception for the caller to handle
             raise
@@ -583,6 +533,7 @@ class MongoDBClient:
         Args:
             collection: Collection name
             field: Field name
+            query: Query filter
             
         Returns:
             List of distinct values
@@ -611,301 +562,10 @@ class MongoDBClient:
             self.logger.error(f"Error creating index on {collection}: {str(e)}")
             raise
     
-    # Conversation Analytics Specific Methods
-    
-    def save_conversation(self, conversation_data: Dict[str, Any]) -> str:
-        """
-        Save a conversation to the conversations collection.
-        
-        Args:
-            conversation_data: Conversation data
-            
-        Returns:
-            Conversation ID
-        """
+    def close(self):
+        """Close the MongoDB connection."""
         try:
-            # Ensure _id is present
-            if "_id" not in conversation_data:
-                conversation_data["_id"] = conversation_data.get("id", str(uuid.uuid4()))
-            
-            # Set timestamps if not present
-            now = datetime.now().isoformat()
-            if "created_at" not in conversation_data:
-                conversation_data["created_at"] = now
-            if "updated_at" not in conversation_data:
-                conversation_data["updated_at"] = now
-            
-            # Insert or replace the conversation
-            self.conversations.replace_one(
-                {"_id": conversation_data["_id"]},
-                conversation_data,
-                upsert=True
-            )
-            
-            return conversation_data["_id"]
+            self.client.close()
+            self.logger.info("MongoDB connection closed")
         except PyMongoError as e:
-            self.logger.error(f"Error saving conversation: {str(e)}")
-            raise
-    
-    def get_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get a conversation by ID.
-        
-        Args:
-            conversation_id: Conversation ID
-            
-        Returns:
-            Conversation data or None if not found
-        """
-        return self.find_one(MONGODB_CONVERSATIONS_COLLECTION, {"_id": conversation_id})
-    
-    def get_conversations_by_user(
-        self,
-        user_id: str,
-        limit: int = 100,
-        skip: int = 0,
-        sort_by: str = "created_at",
-        sort_direction: int = -1
-    ) -> List[Dict[str, Any]]:
-        """
-        Get conversations for a user.
-        
-        Args:
-            user_id: User ID
-            limit: Maximum number of conversations to return
-            skip: Number of conversations to skip
-            sort_by: Field to sort by
-            sort_direction: Sort direction (1 for ascending, -1 for descending)
-            
-        Returns:
-            List of conversations
-        """
-        return self.find(
-            MONGODB_CONVERSATIONS_COLLECTION,
-            {"from_end_user_id": user_id},
-            sort=[(sort_by, sort_direction)],
-            limit=limit,
-            skip=skip
-        )
-    
-    def get_conversations_by_app(
-        self,
-        app_id: str,
-        limit: int = 100,
-        skip: int = 0,
-        sort_by: str = "created_at",
-        sort_direction: int = -1
-    ) -> List[Dict[str, Any]]:
-        """
-        Get conversations for an app.
-        
-        Args:
-            app_id: App ID
-            limit: Maximum number of conversations to return
-            skip: Number of conversations to skip
-            sort_by: Field to sort by
-            sort_direction: Sort direction (1 for ascending, -1 for descending)
-            
-        Returns:
-            List of conversations
-        """
-        return self.find(
-            MONGODB_CONVERSATIONS_COLLECTION,
-            {"app_id": app_id},
-            sort=[(sort_by, sort_direction)],
-            limit=limit,
-            skip=skip
-        )
-    
-    def get_conversations_by_model(
-        self,
-        model_id: str,
-        limit: int = 100,
-        skip: int = 0,
-        sort_by: str = "created_at",
-        sort_direction: int = -1
-    ) -> List[Dict[str, Any]]:
-        """
-        Get conversations for a model.
-        
-        Args:
-            model_id: Model ID
-            limit: Maximum number of conversations to return
-            skip: Number of conversations to skip
-            sort_by: Field to sort by
-            sort_direction: Sort direction (1 for ascending, -1 for descending)
-            
-        Returns:
-            List of conversations
-        """
-        return self.find(
-            MONGODB_CONVERSATIONS_COLLECTION,
-            {"model_id": model_id},
-            sort=[(sort_by, sort_direction)],
-            limit=limit,
-            skip=skip
-        )
-    
-    def get_conversations_by_category(
-        self,
-        category_type: str,
-        category_value: str,
-        limit: int = 100,
-        skip: int = 0,
-        sort_by: str = "created_at",
-        sort_direction: int = -1
-    ) -> List[Dict[str, Any]]:
-        """
-        Get conversations by category.
-        
-        Args:
-            category_type: Category type
-            category_value: Category value
-            limit: Maximum number of conversations to return
-            skip: Number of conversations to skip
-            sort_by: Field to sort by
-            sort_direction: Sort direction (1 for ascending, -1 for descending)
-            
-        Returns:
-            List of conversations
-        """
-        return self.find(
-            MONGODB_CONVERSATIONS_COLLECTION,
-            {
-                "categories.category_type": category_type,
-                "categories.category_value": category_value
-            },
-            sort=[(sort_by, sort_direction)],
-            limit=limit,
-            skip=skip
-        )
-    
-    def get_conversations_by_date_range(
-        self,
-        start_date: str,
-        end_date: str,
-        limit: int = 100,
-        skip: int = 0,
-        sort_by: str = "created_at",
-        sort_direction: int = -1
-    ) -> List[Dict[str, Any]]:
-        """
-        Get conversations within a date range.
-        
-        Args:
-            start_date: Start date (ISO format)
-            end_date: End date (ISO format)
-            limit: Maximum number of conversations to return
-            skip: Number of conversations to skip
-            sort_by: Field to sort by
-            sort_direction: Sort direction (1 for ascending, -1 for descending)
-            
-        Returns:
-            List of conversations
-        """
-        return self.find(
-            MONGODB_CONVERSATIONS_COLLECTION,
-            {
-                "created_at": {
-                    "$gte": start_date,
-                    "$lte": end_date
-                }
-            },
-            sort=[(sort_by, sort_direction)],
-            limit=limit,
-            skip=skip
-        )
-    
-    def add_category_to_conversation(
-        self,
-        conversation_id: str,
-        category_type: str,
-        category_value: str,
-        confidence_score: float = 1.0,
-        created_by: str = "system"
-    ) -> Dict[str, Any]:
-        """
-        Add a category to a conversation.
-        
-        Args:
-            conversation_id: Conversation ID
-            category_type: Category type
-            category_value: Category value
-            confidence_score: Confidence score
-            created_by: Entity that created the category
-            
-        Returns:
-            Result of the update operation
-        """
-        category_id = str(uuid.uuid4())
-        created_at = datetime.now().isoformat()
-        
-        category = {
-            "category_id": category_id,
-            "category_type": category_type,
-            "category_value": category_value,
-            "confidence_score": confidence_score,
-            "created_at": created_at,
-            "created_by": created_by
-        }
-        
-        return self.update_one(
-            MONGODB_CONVERSATIONS_COLLECTION,
-            {"_id": conversation_id},
-            {"$push": {"categories": category}}
-        )
-    
-    def remove_category_from_conversation(
-        self,
-        conversation_id: str,
-        category_id: str
-    ) -> Dict[str, Any]:
-        """
-        Remove a category from a conversation.
-        
-        Args:
-            conversation_id: Conversation ID
-            category_id: Category ID
-            
-        Returns:
-            Result of the update operation
-        """
-        return self.update_one(
-            MONGODB_CONVERSATIONS_COLLECTION,
-            {"_id": conversation_id},
-            {"$pull": {"categories": {"category_id": category_id}}}
-        )
-    
-    def save_translation(self, translation_data: Dict[str, Any]) -> str:
-        """
-        Save a translation to the translations collection.
-        
-        Args:
-            translation_data: Translation data
-            
-        Returns:
-            Translation ID
-        """
-        try:
-            # Ensure _id is present
-            if "_id" not in translation_data:
-                translation_data["_id"] = translation_data.get("id", str(uuid.uuid4()))
-            
-            # Set timestamps if not present
-            now = datetime.now().isoformat()
-            if "created_at" not in translation_data:
-                translation_data["created_at"] = now
-            if "updated_at" not in translation_data:
-                translation_data["updated_at"] = now
-            
-            # Insert or replace the translation
-            self.translations.replace_one(
-                {"_id": translation_data["_id"]},
-                translation_data,
-                upsert=True
-            )
-            
-            return translation_data["_id"]
-        except PyMongoError as e:
-            self.logger.error(f"Error saving translation: {str(e)}")
-            raise
+            self.logger.error(f"Error closing MongoDB connection: {str(e)}")

@@ -132,3 +132,5 @@ dmypy.json
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+sample_data/
+logs/

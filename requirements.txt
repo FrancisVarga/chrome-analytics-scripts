@@ -3,11 +3,10 @@ requests==2.32.3
 pymongo==4.11.2
 python-dotenv==1.0.1
 
-# Data processing (for future Parquet storage module)
-# Uncomment when implementing the S3 Parquet storage module
-# pandas>=1.5.0
-# pyarrow>=10.0.0
-# fastparquet>=0.8.0
+# Data processing (for S3 Parquet storage module)
+pandas==2.2.3
+pyarrow==19.0.1
+fastparquet==2024.11.0
 
 # AWS dependencies (for S3 storage)
 boto3==1.37.1
@@ -20,9 +19,9 @@ s3fs==2025.2.0
 
 # Parallel processing
 joblib==1.4.2
-# Uncomment when implementing the S3 Parquet storage module
-# dask>=2023.3.0
-# distributed>=2023.3.0
+# Distributed processing (for S3 Parquet storage module)
+dask==2025.2.0
+distributed==2025.2.0
 
 # Utilities
 tqdm==4.67.1

@@ -14,11 +14,13 @@ from .config import (
     S3_ENABLED,
     S3_BUCKET,
     S3_PREFIX,
+    PARQUET_STORAGE_ENABLED,
     setup_logging,
     validate_config
 )
 from .api.nocodb_client import NocoDBClient
 from .storage.mongodb_client import MongoDBClient
+from .storage.parquet_storage import ParquetStorage
 from .processors.data_processor import DataProcessor
 from .utils.processing_state import create_processing_state
 
@@ -37,6 +39,7 @@ def create_mongodb_indexes(mongo_client: MongoDBClient) -> None:
 def process_conversation_batch(
     nocodb_client: NocoDBClient,
     mongo_client: Optional[MongoDBClient],
+    parquet_storage: Optional[ParquetStorage],
     data_processor: DataProcessor,
     processing_state,
     start_date: Optional[str] = None,
@@ -125,8 +128,8 @@ def process_conversation_batch(
         if doc_id in categories_by_conversation:
             doc["categories"] = categories_by_conversation[doc_id]
     
-    # Store in MongoDB if enabled
-    if mongo_client:
+    # Store in MongoDB and/or Parquet if enabled
+    if mongo_client or parquet_storage:
         # Get existing user analytics
         user_ids = set(doc.get("from_end_user_id") for doc in processed_docs if doc.get("from_end_user_id"))
         existing_user_analytics = {}
@@ -150,53 +153,86 @@ def process_conversation_batch(
         weekly_reports = data_processor.generate_analytics_reports(processed_docs, "weekly")
         monthly_reports = data_processor.generate_analytics_reports(processed_docs, "monthly")
         
-        # Store conversations
-        for doc in processed_docs:
-            try:
-                mongo_client.update_one(
-                    MONGODB_CONVERSATIONS_COLLECTION,
-                    {"_id": doc["_id"]},
-                    {"$set": doc},
-                    upsert=True
-                )
-                
-                # Update processing state
-                processing_state.update_last_processed(
-                    conversation_id=doc["_id"],
-                    timestamp=doc.get("created_at")
-                )
-                
-                processed_count += 1
-                last_processed_id = doc["_id"]
-                
-            except Exception as e:
-                logging.error(f"Error storing conversation {doc.get('_id')}: {str(e)}")
-                processing_state.record_error(str(e), conversation_id=doc.get("_id"))
+        # Store conversations in MongoDB
+        if mongo_client:
+            for doc in processed_docs:
+                try:
+                    mongo_client.update_one(
+                        MONGODB_CONVERSATIONS_COLLECTION,
+                        {"_id": doc["_id"]},
+                        {"$set": doc},
+                        upsert=True
+                    )
+                    
+                    # Update processing state
+                    processing_state.update_last_processed(
+                        conversation_id=doc["_id"],
+                        timestamp=doc.get("created_at")
+                    )
+                    
+                    processed_count += 1
+                    last_processed_id = doc["_id"]
+                    
+                except Exception as e:
+                    logging.error(f"Error storing conversation {doc.get('_id')}: {str(e)}")
+                    processing_state.record_error(str(e), conversation_id=doc.get("_id"))
+            
+            # Store user analytics in MongoDB
+            for user_doc in updated_user_analytics:
+                try:
+                    mongo_client.update_one(
+                        MONGODB_USER_ANALYTICS_COLLECTION,
+                        {"_id": user_doc["_id"]},
+                        {"$set": user_doc},
+                        upsert=True
+                    )
+                except Exception as e:
+                    logging.error(f"Error storing user analytics for {user_doc.get('_id')}: {str(e)}")
+            
+            # Store analytics reports in MongoDB
+            all_reports = daily_reports + weekly_reports + monthly_reports
+            for report in all_reports:
+                try:
+                    mongo_client.update_one(
+                        MONGODB_ANALYTICS_REPORTS_COLLECTION,
+                        {"_id": report["_id"]},
+                        {"$set": report},
+                        upsert=True
+                    )
+                except Exception as e:
+                    logging.error(f"Error storing analytics report {report.get('_id')}: {str(e)}")
         
-        # Store user analytics
-        for user_doc in updated_user_analytics:
+        # Store data in Parquet format if enabled
+        if parquet_storage:
             try:
-                mongo_client.update_one(
-                    MONGODB_USER_ANALYTICS_COLLECTION,
-                    {"_id": user_doc["_id"]},
-                    {"$set": user_doc},
-                    upsert=True
-                )
+                # Store conversations in Parquet format
+                stored_paths = parquet_storage.store_conversations(processed_docs)
+                logging.info(f"Stored conversations in Parquet format at: {', '.join(stored_paths)}")
+                
+                # Store user analytics in Parquet format
+                user_analytics_path = parquet_storage.store_user_analytics(updated_user_analytics)
+                if user_analytics_path:
+                    logging.info(f"Stored user analytics in Parquet format at: {user_analytics_path}")
+                
+                # Store analytics reports in Parquet format
+                all_reports = daily_reports + weekly_reports + monthly_reports
+                report_paths = parquet_storage.store_analytics_reports(all_reports)
+                if report_paths:
+                    logging.info(f"Stored analytics reports in Parquet format at: {', '.join(report_paths.values())}")
+                
+                # Update processing state if MongoDB is not enabled
+                if not mongo_client:
+                    for doc in processed_docs:
+                        processing_state.update_last_processed(
+                            conversation_id=doc["_id"],
+                            timestamp=doc.get("created_at")
+                        )
+                        
+                        processed_count += 1
+                        last_processed_id = doc["_id"]
             except Exception as e:
-                logging.error(f"Error storing user analytics for {user_doc.get('_id')}: {str(e)}")
-        
-        # Store analytics reports
-        all_reports = daily_reports + weekly_reports + monthly_reports
-        for report in all_reports:
-            try:
-                mongo_client.update_one(
-                    MONGODB_ANALYTICS_REPORTS_COLLECTION,
-                    {"_id": report["_id"]},
-                    {"$set": report},
-                    upsert=True
-                )
-            except Exception as e:
-                logging.error(f"Error storing analytics report {report.get('_id')}: {str(e)}")
+                logging.error(f"Error storing data in Parquet format: {str(e)}")
+                processing_state.record_error(str(e))
     else:
         # Just update processing state
         for doc in processed_docs:
@@ -214,12 +250,13 @@ def process_conversation_batch(
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description='Collect data from NocoDB and store in MongoDB')
+    parser = argparse.ArgumentParser(description='Collect data from NocoDB and store in MongoDB/Parquet')
     parser.add_argument('--start-date', type=str, help='Start date for data collection (ISO format)')
     parser.add_argument('--end-date', type=str, help='End date for data collection (ISO format)')
     parser.add_argument('--app-id', type=str, help='App ID for filtering conversations')
     parser.add_argument('--batch-size', type=int, default=BATCH_SIZE, help='Batch size for processing')
     parser.add_argument('--no-mongodb', action='store_true', help='Skip MongoDB storage')
+    parser.add_argument('--no-parquet', action='store_true', help='Skip Parquet storage')
     parser.add_argument('--resume', action='store_true', help='Resume from last processed conversation')
     parser.add_argument('--state-file', type=str, default='processing_state.json', help='Path to state file')
     parser.add_argument('--use-s3-state', action='store_true', help='Use S3 for state tracking')
@@ -246,11 +283,15 @@ def main():
         # Initialize clients
         nocodb_client = NocoDBClient()
         
-        # Initialize MongoDB client if needed
+        # Initialize storage clients
         mongo_client = None
         if not args.no_mongodb:
             mongo_client = MongoDBClient()
             create_mongodb_indexes(mongo_client)
+        
+        parquet_storage = None
+        if PARQUET_STORAGE_ENABLED and not args.no_parquet:
+            parquet_storage = ParquetStorage()
         
         # Initialize data processor
         data_processor = DataProcessor()
@@ -271,6 +312,7 @@ def main():
             processed_count, last_id = process_conversation_batch(
                 nocodb_client=nocodb_client,
                 mongo_client=mongo_client,
+                parquet_storage=parquet_storage,
                 data_processor=data_processor,
                 processing_state=processing_state,
                 start_date=args.start_date,

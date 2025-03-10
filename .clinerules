@@ -2,8 +2,6 @@
 
 These rules define the workflow and maintenance practices for this project:
 
-1. Create a plan first and then update the todo.md
-2. Keep plan and todo always up to date
 3. Add or remove .clinerules rules or actions if necessary
 4. Ignore all linter errors (HIGH PRIORITY)
 
