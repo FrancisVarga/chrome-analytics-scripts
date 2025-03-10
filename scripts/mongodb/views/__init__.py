@@ -20,6 +20,10 @@ from scripts.mongodb.views.user_metrics import (
 from scripts.mongodb.views.category_metrics import (
     create_category_distribution_view
 )
+from scripts.mongodb.views.agent_metrics import (
+    create_agent_mention_metrics_view,
+    create_agent_mention_distribution_view
+)
 
 # List of all view creation functions
 VIEW_CREATORS = [
@@ -30,7 +34,9 @@ VIEW_CREATORS = [
     create_user_activity_metrics_view,
     create_category_distribution_view,
     create_conversation_length_distribution_view,
-    create_token_usage_metrics_view
+    create_token_usage_metrics_view,
+    create_agent_mention_metrics_view,
+    create_agent_mention_distribution_view
 ]
 
 __all__ = [
@@ -42,5 +48,7 @@ __all__ = [
     "create_category_distribution_view",
     "create_conversation_length_distribution_view",
     "create_token_usage_metrics_view",
+    "create_agent_mention_metrics_view",
+    "create_agent_mention_distribution_view",
     "VIEW_CREATORS"
 ]
