@@ -52,7 +52,7 @@ def create_agent_mention_metrics_view(client):
         },
         {
             "$match": {
-                "messages.content": {"$regex": "#AGENT", "$options": "i"}
+                "messages.answer": {"$regex": "#AGENT", "$options": "i"}
             }
         },
         {
