@@ -52,3 +52,4 @@ These rules define the workflow and maintenance practices for this project:
 41. Stay updated with best practices and security vulnerabilities
 42. Follow Conventional Commits for commit messages
 43. Always keep .gitignore updated
+44. Do not write tests for the modules until instructed otherwise
