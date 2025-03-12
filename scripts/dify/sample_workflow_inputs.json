@@ -1,0 +1,8 @@
+{
+    "workflow_id": "sample_workflow",
+    "query": "What is the sentiment analysis of this conversation?",
+    "conversation_id": "conv_12345",
+    "language": "en",
+    "max_tokens": 1000,
+    "temperature": 0.7
+}
