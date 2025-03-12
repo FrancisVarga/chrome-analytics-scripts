@@ -17,6 +17,7 @@ Options:
 import os
 import sys
 import csv
+import json
 import argparse
 import logging
 import uuid
@@ -123,6 +124,27 @@ def read_csv_file(file_path: str) -> List[Dict[str, Any]]:
     return records
 
 
+def parse_json_field(json_str: str, field_name: str = "unknown") -> Any:
+    """
+    Parse a JSON string to a Python object.
+    
+    Args:
+        json_str: JSON string to parse
+        field_name: Name of the field for logging purposes
+    
+    Returns:
+        Parsed JSON object or original string if parsing fails
+    """
+    if not json_str or json_str == '{}' or json_str == '[]':
+        return {} if json_str == '{}' else [] if json_str == '[]' else json_str
+    
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        logger.warning(f"Could not parse JSON in field '{field_name}': {json_str[:100]}...")
+        return json_str
+
+
 def format_date(date_str: Optional[str]) -> str:
     """
     Parse and format a date string to ISO 8601 format.
@@ -189,6 +211,9 @@ def process_conversations(
             created_at = format_date(record.get('created_at'))
             updated_at = format_date(record.get('updated_at')) if record.get('updated_at') else created_at
             
+            # Parse JSON fields
+            inputs = parse_json_field(record.get('inputs', '{}'), 'inputs')
+            
             # Convert to MongoDB format
             conversation = {
                 '_id': conversation_id,
@@ -199,7 +224,7 @@ def process_conversations(
                 'mode': record.get('mode', ''),
                 'name': record.get('name', ''),
                 'summary': record.get('summary', ''),
-                'inputs': record.get('inputs', '{}'),
+                'inputs': inputs,
                 'introduction': record.get('introduction', ''),
                 'system_instruction': record.get('system_instruction', ''),
                 'status': record.get('status', ''),
@@ -271,6 +296,9 @@ def process_messages(
             # Format date
             created_at = format_date(record.get('created_at'))
             
+            # Parse JSON field
+            message_content = parse_json_field(record.get('message', '{}'), 'message')
+            
             # Convert to MongoDB format
             message = {
                 'message_id': str(uuid.uuid4()),
@@ -278,7 +306,7 @@ def process_messages(
                 'model_provider': record.get('model_provider', ''),
                 'model_id': record.get('model_id', ''),
                 'query': record.get('query', ''),
-                'message': record.get('message', ''),
+                'message': message_content,
                 'message_tokens': int(record.get('message_tokens', '0')),
                 'answer': record.get('answer', ''),
                 'answer_tokens': int(record.get('answer_tokens', '0')),
@@ -413,6 +441,16 @@ def process_chatbot_data(
             updated_at = format_date(record.get('UpdatedAt')) if record.get('UpdatedAt') else created_at
             created_at_dify_date = format_date(record.get('created_at_dify_date'))
             
+            # Parse JSON fields
+            translation = parse_json_field(record.get('translation', ''), 'translation')
+            analysis = parse_json_field(record.get('analysis', ''), 'analysis')
+            risk_analysis = parse_json_field(record.get('risk_analysis', ''), 'risk_analysis')
+            conversational_analysis = parse_json_field(record.get('conversational_analysis', ''), 'conversational_analysis')
+            recommendations = parse_json_field(record.get('recommendations', ''), 'recommendations')
+            categorization = parse_json_field(record.get('categorization', ''), 'categorization')
+            n8n_data = parse_json_field(record.get('n8n_data', ''), 'n8n_data')
+            success_analysis = parse_json_field(record.get('success_analysis', ''), 'success_analysis')
+            
             # Convert to MongoDB format
             processed_record = {
                 "_id": record.get('chatbot_data_id') or str(uuid.uuid4()),
@@ -420,15 +458,15 @@ def process_chatbot_data(
                 "created_at": created_at,
                 "updated_at": updated_at,
                 "conversation_id": record.get('conversation_id', ''),
-                "translation": record.get('translation', ''),
-                "analysis": record.get('analysis', ''),
-                "risk_analysis": record.get('risk_analysis', ''),
-                "conversational_analysis": record.get('conversational_analysis', ''),
-                "recommendations": record.get('recommendations', ''),
-                "categorization": record.get('categorization', ''),
+                "translation": translation,
+                "analysis": analysis,
+                "risk_analysis": risk_analysis,
+                "conversational_analysis": conversational_analysis,
+                "recommendations": recommendations,
+                "categorization": categorization,
                 "task_id": record.get('task_id', ''),
-                "n8n_data": record.get('n8n_data', ''),
-                "success_analysis": record.get('success_analysis', ''),
+                "n8n_data": n8n_data,
+                "success_analysis": success_analysis,
                 "success": record.get('success', ''),
                 "success_rating": record.get('success_rating', ''),
                 "dify_workflow_id": record.get('dify_workflow_id', ''),

@@ -187,6 +187,140 @@ The framework supports both local and S3 storage, with S3 being the preferred op
 
 The framework primarily uses synchronous processing for simplicity and reliability. Asynchronous processing could be considered for future enhancements, particularly for I/O-bound operations.
 
+## External API Integration
+
+### Dify Workflow API
+
+#### Authentication
+
+The Dify Service API uses API-Key authentication. API Keys should be stored securely on the server-side, not on the client-side, to prevent API-Key leakage.
+
+For all API requests, include the API Key in the Authorization HTTP header:
+
+```
+Authorization: Bearer {API_KEY}
+```
+
+#### Workflow Execution
+
+**Endpoint**: `POST /workflows/run`
+
+**Purpose**: Execute a published workflow
+
+**Request Body Parameters**:
+
+- `inputs` (object, required): Contains key/value pairs for workflow variables. At least one key/value pair is required. For file-type variables, specify an object with the file description keys.
+- `response_mode` (string, required): Response return mode
+  - `streaming`: Streaming mode (recommended) using SSE (Server-Sent Events)
+  - `blocking`: Blocking mode, returns result after completion (may time out after 100s due to Cloudflare restrictions)
+- `user` (string, required): Unique identifier to identify the end-user for retrieval and statistics
+- `files` (array[object], optional): File list for models that support file parsing
+  - `type` (string): Supported file types
+    - `document`: TXT, MD, MARKDOWN, PDF, HTML, XLSX, XLS, DOCX, CSV, EML, MSG, PPTX, PPT, XML, EPUB
+    - `image`: JPG, JPEG, PNG, GIF, WEBP, SVG
+    - `audio`: MP3, M4A, WAV, WEBM, AMR
+    - `video`: MP4, MOV, MPEG, MPGA
+    - `custom`: Other file types
+  - `transfer_method` (string): `remote_url` for image URL / `local_file` for file upload
+  - `url` (string): Image URL (when transfer_method is remote_url)
+  - `upload_file_id` (string): Uploaded file ID from File Upload API (when transfer_method is local_file)
+
+#### Response Types
+
+**Blocking Mode Response** (CompletionResponse):
+
+Content-Type: application/json
+
+- `workflow_run_id` (string): Unique ID of workflow execution
+- `task_id` (string): Task ID for request tracking
+- `data` (object): Result details
+  - `id` (string): ID of workflow execution
+  - `workflow_id` (string): ID of related workflow
+  - `status` (string): Execution status (running/succeeded/failed/stopped)
+  - `outputs` (json, optional): Content output
+  - `error` (string, optional): Error reason
+  - `elapsed_time` (float, optional): Total seconds used
+  - `total_tokens` (int, optional): Tokens used
+  - `total_steps` (int): Default 0
+  - `created_at` (timestamp): Start time
+  - `finished_at` (timestamp): End time
+
+**Streaming Mode Response** (ChunkCompletionResponse):
+
+Content-Type: text/event-stream
+
+Each streaming chunk starts with `data:` followed by the content, separated by `\n\n`. Example:
+
+```
+data: {"event": "message", "task_id": "900bbd43-dc0b-4383-a372-aa6e6c414227", "id": "663c5084-a254-4040-8ad3-51f2a3c1a77c", "answer": "Hi", "created_at": 1705398420}\n\n
+```
+
+Event types:
+
+- `workflow_started`: Workflow starts execution
+- `node_started`: Node execution started
+- `node_finished`: Node execution ends
+- `workflow_finished`: Workflow execution ends
+- `tts_message`: TTS audio stream event (base64 encoded audio)
+- `tts_message_end`: TTS audio stream end event
+- `ping`: Ping event every 10s to keep connection alive
+
+#### Error Codes
+
+- 400, `invalid_param`: Abnormal parameter input
+- 400, `app_unavailable`: App configuration unavailable
+- 400, `provider_not_initialize`: No available model credential configuration
+- 400, `provider_quota_exceeded`: Model invocation quota insufficient
+- 400, `model_currently_not_support`: Current model unavailable
+- 400, `workflow_request_error`: Workflow execution failed
+- 500, Internal server error
+
+#### Implementation Example
+
+```python
+import requests
+import json
+
+def execute_dify_workflow(api_key, inputs=None, response_mode="blocking", user_id="user_123"):
+    """
+    Execute a Dify workflow
+    
+    Args:
+        api_key (str): Dify API key
+        inputs (dict): Workflow inputs
+        response_mode (str): Response mode (streaming or blocking)
+        user_id (str): Unique user identifier
+        
+    Returns:
+        dict: Response from Dify API
+    """
+    url = "https://aitool.liveperson88.com/v1/workflows/run"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "inputs": inputs or {},
+        "response_mode": response_mode,
+        "user": user_id
+    }
+    
+    if response_mode == "blocking":
+        response = requests.post(url, headers=headers, json=data)
+        return response.json()
+    else:  # streaming mode
+        response = requests.post(url, headers=headers, json(data), stream=True)
+        for line in response.iter_lines():
+            if line:
+                line = line.decode('utf-8')
+                if line.startswith('data:'):
+                    data = json.loads(line[5:])
+                    # Process streaming data here
+                    yield data
+```
+
 ## Integration Points
 
 ### NocoDB API

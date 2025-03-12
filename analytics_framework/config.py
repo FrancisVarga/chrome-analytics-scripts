@@ -28,6 +28,11 @@ MONGODB_TRANSLATIONS_COLLECTION = os.getenv("MONGODB_TRANSLATIONS_COLLECTION", "
 MONGODB_ANALYTICS_REPORTS_COLLECTION = os.getenv("MONGODB_ANALYTICS_REPORTS_COLLECTION", "analytics_reports")
 MONGODB_USER_ANALYTICS_COLLECTION = os.getenv("MONGODB_USER_ANALYTICS_COLLECTION", "user_analytics")
 
+# Dify API Configuration
+DIFY_API_KEY = os.getenv("DIFY_API_KEY")
+DIFY_BASE_URL = os.getenv("DIFY_BASE_URL", "https://aitool.liveperson88.com/v1")
+DIFY_WORKFLOW_ENABLED = os.getenv("DIFY_WORKFLOW_ENABLED", "false").lower() == "true"
+
 # S3 Storage Configuration
 S3_ENABLED = os.getenv("S3_ENABLED", "false").lower() == "true"
 S3_BUCKET = os.getenv("S3_BUCKET")
@@ -99,6 +104,20 @@ def validate_config():
         
         if missing_s3_vars:
             error_msg = f"S3 storage enabled but missing required environment variables: {', '.join(missing_s3_vars)}"
+            logging.error(error_msg)
+            raise ValueError(error_msg)
+    
+    # Validate Dify configuration if enabled
+    if DIFY_WORKFLOW_ENABLED:
+        dify_required_vars = [
+            "DIFY_API_KEY",
+            "DIFY_BASE_URL"
+        ]
+        
+        missing_dify_vars = [var for var in dify_required_vars if not globals().get(var)]
+        
+        if missing_dify_vars:
+            error_msg = f"Dify workflow enabled but missing required environment variables: {', '.join(missing_dify_vars)}"
             logging.error(error_msg)
             raise ValueError(error_msg)
 
