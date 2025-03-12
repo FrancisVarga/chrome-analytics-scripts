@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Any
 import re
+import json
 
 from ..utils.thread_pool import thread_pool_manager
 
@@ -14,7 +15,30 @@ class DataProcessor:
     def __init__(self):
         """Initialize the data processor."""
         self.logger = logging.getLogger(__name__)
-    
+        
+    def _parse_json_field(self, json_str: str, field_name: str = "unknown") -> Any:
+        """
+        Parse a JSON string into a Python object.
+        
+        Args:
+            json_str: JSON string to parse
+            field_name: Name of the field for logging
+            
+        Returns:
+            Parsed JSON object or empty dict/list if parsing fails
+        """
+        if not json_str or json_str == '[]' or json_str == '{}':
+            return {} if json_str == '{}' else []
+            
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            self.logger.warning(f"Failed to parse JSON in {field_name}: {str(e)}")
+            return {} if json_str.strip().startswith('{') else []
+        except Exception as e:
+            self.logger.error(f"Unexpected error parsing JSON in {field_name}: {str(e)}")
+            return {} if json_str.strip().startswith('{') else []
+
     def process_conversations_batch(
         self,
         conversations: List[Dict[str, Any]],
@@ -78,6 +102,19 @@ class DataProcessor:
                 "parent_message_id": msg.get('parent_message_id')
             }
             processed_messages.append(processed_message)
+            
+        # Parse JSON inputs
+        inputs = conversation.get('inputs', '{}')
+        if isinstance(inputs, str):
+            parsed_inputs = self._parse_json_field(inputs, 'inputs')
+        else:
+            parsed_inputs = inputs
+
+        # Parse list fields in inputs
+        if isinstance(parsed_inputs, dict):
+            for field in ['listDeposit', 'listWithdrawal', 'listDepositMethods', 'listWithdrawalMethods', 'banks']:
+                if field in parsed_inputs and isinstance(parsed_inputs[field], str):
+                    parsed_inputs[field] = self._parse_json_field(parsed_inputs[field], field)
         
         # Create the MongoDB document
         mongo_doc = {
@@ -112,7 +149,10 @@ class DataProcessor:
             # Analytics metadata
             "analytics_metadata": {
                 "processed_at": datetime.now().isoformat()
-            }
+            },
+            
+            # Parsed inputs
+            "inputs": parsed_inputs
         }
         
         return mongo_doc

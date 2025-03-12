@@ -27,6 +27,14 @@ from scripts.mongodb.views.agent_metrics import (
     create_agent_mention_metrics_view,
     create_agent_mention_distribution_view
 )
+from scripts.mongodb.views.user_session_metrics import (
+    create_user_session_metrics_view
+)
+from scripts.mongodb.views.transaction_metrics import (
+    create_deposit_metrics_view,
+    create_payment_method_metrics_view,
+    create_bank_usage_metrics_view
+)
 
 # List of all view creation functions
 VIEW_CREATORS = [
@@ -40,7 +48,12 @@ VIEW_CREATORS = [
     create_token_usage_metrics_view,
     create_agent_mention_metrics_view,
     create_agent_mention_distribution_view,
-    create_conversation_with_analytics_report_view
+    create_conversation_with_analytics_report_view,
+    # New views
+    create_user_session_metrics_view,
+    create_deposit_metrics_view,
+    create_payment_method_metrics_view,
+    create_bank_usage_metrics_view
 ]
 
 __all__ = [
@@ -55,5 +68,9 @@ __all__ = [
     "create_agent_mention_metrics_view",
     "create_agent_mention_distribution_view",
     "create_conversation_with_analytics_report_view",
+    "create_user_session_metrics_view",
+    "create_deposit_metrics_view",
+    "create_payment_method_metrics_view", 
+    "create_bank_usage_metrics_view",
     "VIEW_CREATORS"
 ]
