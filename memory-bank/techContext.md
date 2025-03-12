@@ -139,6 +139,24 @@ The framework is configured through environment variables, which can be set in a
 - `LOG_LEVEL`: Logging level
 - `LOG_FILE`: Log file path
 
+## Database Schema
+
+### Conversation Table Columns
+
+The conversation table in NocoDB has the following columns:
+
+```
+app_id,id,app_model_config_id,model_provider,override_model_configs,model_id,mode,name,summary,inputs,introduction,system_instruction,system_instruction_tokens,status,from_source,from_end_user_id,from_account_id,read_at,read_account_id,created_at,updated_at,is_deleted,invoke_from,dialogue_count
+```
+
+### Messages Table Columns
+
+The messages table in NocoDB has the following columns:
+
+```
+app_id,model_provider,model_id,override_model_configs,conversation_id,inputs,query,message,message_tokens,message_unit_price,answer,answer_tokens,answer_unit_price,provider_response_latency,total_price,currency,from_source,from_end_user_id,from_account_id,agent_based,message_price_unit,answer_price_unit,workflow_run_id,status,error,message_metadata,invoke_from,parent_message_id
+```
+
 ## Technical Constraints
 
 ### Performance Constraints

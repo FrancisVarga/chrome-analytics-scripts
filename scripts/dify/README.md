@@ -27,13 +27,13 @@ This script provides a flexible command-line interface for triggering Dify workf
 **Basic usage with key-value inputs:**
 
 ```bash
-python scripts/dify/trigger_dify_workflow.py --workflow-id sample_workflow --input-key query="Analyze this conversation"
+python scripts/dify/trigger_dify_workflow.py --input-key query="Analyze this conversation"
 ```
 
 **Multiple input parameters:**
 
 ```bash
-python scripts/dify/trigger_dify_workflow.py --workflow-id sample_workflow \
+python scripts/dify/trigger_dify_workflow.py \
   --input-key query="Analyze this conversation" \
   --input-key conversation_id=conv_12345 \
   --input-key language=en
@@ -42,19 +42,19 @@ python scripts/dify/trigger_dify_workflow.py --workflow-id sample_workflow \
 **Using a JSON file for inputs:**
 
 ```bash
-python scripts/dify/trigger_dify_workflow.py --workflow-id sample_workflow --input-file scripts/dify/sample_workflow_inputs.json
+python scripts/dify/trigger_dify_workflow.py --input-file scripts/dify/sample_workflow_inputs.json
 ```
 
 **Streaming mode:**
 
 ```bash
-python scripts/dify/trigger_dify_workflow.py --workflow-id sample_workflow --input-key query="Analyze this conversation" --stream
+python scripts/dify/trigger_dify_workflow.py --input-key query="Analyze this conversation" --stream
 ```
 
 **Overriding API credentials:**
 
 ```bash
-python scripts/dify/trigger_dify_workflow.py --workflow-id sample_workflow \
+python scripts/dify/trigger_dify_workflow.py \
   --input-key query="Analyze this conversation" \
   --api-key your_api_key \
   --base-url https://your-dify-instance.com/v1
@@ -63,7 +63,7 @@ python scripts/dify/trigger_dify_workflow.py --workflow-id sample_workflow \
 **Verbose logging:**
 
 ```bash
-python scripts/dify/trigger_dify_workflow.py --workflow-id sample_workflow --input-key query="Analyze this conversation" --verbose
+python scripts/dify/trigger_dify_workflow.py --input-key query="Analyze this conversation" --verbose
 ```
 
 ### 2. Programmatic Example: `run_workflow_example.py`
@@ -87,12 +87,11 @@ The `sample_workflow_inputs.json` file provides an example of workflow inputs in
 
 ```json
 {
-    "workflow_id": "sample_workflow",
-    "query": "What is the sentiment analysis of this conversation?",
-    "conversation_id": "conv_12345",
-    "language": "en",
-    "max_tokens": 1000,
-    "temperature": 0.7
+    "inputs": {
+        "content": "What is the sentiment analysis of this conversation?"
+    },
+    "response_mode": "blocking",
+    "user": "chroma-user"
 }
 ```
 
@@ -109,7 +108,6 @@ client = DifyClient(api_key=DIFY_API_KEY, base_url=DIFY_BASE_URL)
 
 # Prepare inputs
 inputs = {
-    "workflow_id": "your_workflow_id",
     "query": "Your query here",
     # Additional parameters as needed
 }

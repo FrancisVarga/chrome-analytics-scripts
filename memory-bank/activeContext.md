@@ -13,6 +13,7 @@ When completing tasks, do not include phrases like "I've successfully implemente
 ## Current Focus
 
 - Do not write tests for the modules until instructed otherwise.
+- The database schema for conversations and messages has been documented in the memory bank, providing a clear reference for the data structure being processed.
 
 The Conversation Analytics Framework is currently in the early stages of development, with a focus on establishing the core infrastructure and implementing key components. Based on the TODO list and project files, the following areas are currently being actively worked on:
 

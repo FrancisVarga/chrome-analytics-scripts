@@ -6,9 +6,9 @@ This script uses the DifyClient to execute a Dify workflow with the specified in
 It supports both blocking and streaming response modes.
 
 Usage:
-    python scripts/dify/trigger_dify_workflow.py --workflow-id my_workflow --input-key value
-    python scripts/dify/trigger_dify_workflow.py --workflow-id my_workflow --input-key value --stream
-    python scripts/dify/trigger_dify_workflow.py --workflow-id my_workflow --input-file inputs.json
+    python scripts/dify/trigger_dify_workflow.py --input-key query=value
+    python scripts/dify/trigger_dify_workflow.py --input-key query=value --stream
+    python scripts/dify/trigger_dify_workflow.py --input-file inputs.json
 """
 
 import argparse
@@ -24,13 +24,6 @@ from analytics_framework.config import setup_logging, DIFY_API_KEY, DIFY_BASE_UR
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Trigger a Dify workflow")
-    
-    # Required arguments
-    parser.add_argument(
-        "--workflow-id",
-        required=True,
-        help="Identifier for the workflow to trigger (used in inputs)"
-    )
     
     # Input methods (mutually exclusive)
     input_group = parser.add_mutually_exclusive_group(required=True)
@@ -156,10 +149,6 @@ def trigger_workflow(args: argparse.Namespace) -> None:
         except ValueError as e:
             logging.error(str(e))
             sys.exit(1)
-    
-    # Add workflow ID to inputs if not already present
-    if "workflow_id" not in inputs:
-        inputs["workflow_id"] = args.workflow_id
     
     # Response mode
     response_mode = "streaming" if args.stream else "blocking"
