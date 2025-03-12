@@ -153,6 +153,8 @@ def read_csv_file(file_path: str, use_gpu: bool = False) -> List[Dict[str, Any]]
                 df = pd.read_csv(file_path)
                 # Convert to list of dictionaries
                 records = df.to_dict('records')
+                # Process all records to convert strings to JSON objects
+                records = [parse_json_recursive(record, f"record_{i}") for i, record in enumerate(records)]
                 return records
             except (ImportError, ModuleNotFoundError):
                 logger.warning("GPU acceleration requested but PyTorch not available. Falling back to CPU.")
@@ -162,17 +164,45 @@ def read_csv_file(file_path: str, use_gpu: bool = False) -> List[Dict[str, Any]]
         # Standard CSV reading
         with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
             reader = csv.DictReader(f)
-            for row in reader:
-                records.append(row)
+            records = []
+            for i, row in enumerate(reader):
+                # Process each row to convert strings to JSON objects
+                processed_row = parse_json_recursive(row, f"row_{i}")
+                records.append(processed_row)
     except Exception as e:
         logger.error(f"Error reading {file_path}: {str(e)}")
     
     return records
 
 
+def parse_json_recursive(obj: Any, field_name: str = "unknown") -> Any:
+    """
+    Recursively parse JSON strings within any object.
+    
+    Args:
+        obj: Object to parse (can be dict, list, str, or any other type)
+        field_name: Name of the field for logging purposes
+        
+    Returns:
+        Parsed object with all JSON strings converted to Python objects
+    """
+    if isinstance(obj, dict):
+        return {k: parse_json_recursive(v, f"{field_name}.{k}") for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [parse_json_recursive(item, f"{field_name}[{i}]") for i, item in enumerate(obj)]
+    elif isinstance(obj, str):
+        try:
+            parsed = json.loads(obj)
+            # Recursively parse the result in case it contains more JSON strings
+            return parse_json_recursive(parsed, field_name)
+        except json.JSONDecodeError:
+            return obj
+    else:
+        return obj
+
 def parse_json_field(json_str: str, field_name: str = "unknown") -> Any:
     """
-    Parse a JSON string to a Python object.
+    Parse a JSON string to a Python object, including nested JSON strings.
     
     Args:
         json_str: JSON string to parse
@@ -185,7 +215,10 @@ def parse_json_field(json_str: str, field_name: str = "unknown") -> Any:
         return {} if json_str == '{}' else [] if json_str == '[]' else json_str
     
     try:
-        return json.loads(str(json_str))
+        # First parse the string as JSON
+        parsed = json.loads(str(json_str))
+        # Then recursively parse any nested JSON strings
+        return parse_json_recursive(parsed, field_name)
     except json.JSONDecodeError:
         logger.warning(f"Could not parse JSON in field '{field_name}': {str(json_str)[:100]}...")
         return json_str
@@ -252,9 +285,6 @@ def process_conversation_file(file_path: str, limit: Optional[int] = None, use_g
         created_at = format_date(record.get('created_at'))
         updated_at = format_date(record.get('updated_at')) if record.get('updated_at') else created_at
         
-        # Parse JSON fields
-        inputs = parse_json_field(record.get('inputs', '{}'), 'inputs')
-        
         # Convert to MongoDB format
         conversation = {
             '_id': conversation_id,
@@ -265,7 +295,7 @@ def process_conversation_file(file_path: str, limit: Optional[int] = None, use_g
             'mode': record.get('mode', ''),
             'name': record.get('name', ''),
             'summary': record.get('summary', ''),
-            'inputs': inputs,
+            'inputs': record.get('inputs', {}),
             'introduction': record.get('introduction', ''),
             'system_instruction': record.get('system_instruction', ''),
             'status': record.get('status', ''),
@@ -387,9 +417,6 @@ def process_message_file(
         # Format date
         created_at = format_date(record.get('created_at'))
         
-        # Parse JSON field
-        message_content = parse_json_field(record.get('message', '{}'), 'message')
-        
         # Convert to MongoDB format
         message = {
             'message_id': str(uuid.uuid4()),
@@ -397,7 +424,7 @@ def process_message_file(
             'model_provider': record.get('model_provider', ''),
             'model_id': record.get('model_id', ''),
             'query': record.get('query', ''),
-            'message': message_content,
+            'message': record.get('message', {}),
             'message_tokens': int(record.get('message_tokens', '0')),
             'answer': record.get('answer', ''),
             'answer_tokens': int(record.get('answer_tokens', '0')),
@@ -519,16 +546,6 @@ def process_chatbot_file(
         updated_at = format_date(record.get('UpdatedAt')) if record.get('UpdatedAt') else created_at
         created_at_dify_date = format_date(record.get('created_at_dify_date'))
         
-        # Parse JSON fields
-        translation = parse_json_field(record.get('translation', ''), 'translation')
-        analysis = parse_json_field(record.get('analysis', ''), 'analysis')
-        risk_analysis = parse_json_field(record.get('risk_analysis', ''), 'risk_analysis')
-        conversational_analysis = parse_json_field(record.get('conversational_analysis', ''), 'conversational_analysis')
-        recommendations = parse_json_field(record.get('recommendations', ''), 'recommendations')
-        categorization = parse_json_field(record.get('categorization', ''), 'categorization')
-        n8n_data = parse_json_field(record.get('n8n_data', ''), 'n8n_data')
-        success_analysis = parse_json_field(record.get('success_analysis', ''), 'success_analysis')
-        
         # Convert to MongoDB format
         processed_record = {
             "_id": record.get('chatbot_data_id') or str(uuid.uuid4()),
@@ -536,15 +553,15 @@ def process_chatbot_file(
             "created_at": created_at,
             "updated_at": updated_at,
             "conversation_id": record.get('conversation_id', ''),
-            "translation": translation,
-            "analysis": analysis,
-            "risk_analysis": risk_analysis,
-            "conversational_analysis": conversational_analysis,
-            "recommendations": recommendations,
-            "categorization": categorization,
+            "translation": record.get('translation', {}),
+            "analysis": record.get('analysis', {}),
+            "risk_analysis": record.get('risk_analysis', {}),
+            "conversational_analysis": record.get('conversational_analysis', {}),
+            "recommendations": record.get('recommendations', {}),
+            "categorization": record.get('categorization', {}),
             "task_id": record.get('task_id', ''),
-            "n8n_data": n8n_data,
-            "success_analysis": success_analysis,
+            "n8n_data": record.get('n8n_data', {}),
+            "success_analysis": record.get('success_analysis', {}),
             "success": record.get('success', ''),
             "success_rating": record.get('success_rating', ''),
             "dify_workflow_id": record.get('dify_workflow_id', ''),

@@ -35,6 +35,15 @@ from scripts.mongodb.views.transaction_metrics import (
     create_payment_method_metrics_view,
     create_bank_usage_metrics_view
 )
+from scripts.mongodb.views.conversation_input_metrics import (
+    create_conversation_input_metrics_view,
+    create_conversation_input_field_distribution_view,
+    create_conversation_input_type_metrics_view,
+    create_conversation_input_list_metrics_view,
+    create_conversation_input_grouping_metrics_view,
+    create_conversation_count_by_input_fields_view,
+    create_daily_conversations_and_messages_by_input_fields_view
+)
 
 # List of all view creation functions
 VIEW_CREATORS = [
@@ -53,7 +62,15 @@ VIEW_CREATORS = [
     create_user_session_metrics_view,
     create_deposit_metrics_view,
     create_payment_method_metrics_view,
-    create_bank_usage_metrics_view
+    create_bank_usage_metrics_view,
+    # Conversation input metrics views
+    create_conversation_input_metrics_view,
+    create_conversation_input_field_distribution_view,
+    create_conversation_input_type_metrics_view,
+    create_conversation_input_list_metrics_view,
+    create_conversation_input_grouping_metrics_view,
+    create_conversation_count_by_input_fields_view,
+    create_daily_conversations_and_messages_by_input_fields_view
 ]
 
 __all__ = [
@@ -72,5 +89,12 @@ __all__ = [
     "create_deposit_metrics_view",
     "create_payment_method_metrics_view", 
     "create_bank_usage_metrics_view",
+    "create_conversation_input_metrics_view",
+    "create_conversation_input_field_distribution_view",
+    "create_conversation_input_type_metrics_view",
+    "create_conversation_input_list_metrics_view",
+    "create_conversation_input_grouping_metrics_view",
+    "create_conversation_count_by_input_fields_view",
+    "create_daily_conversations_and_messages_by_input_fields_view",
     "VIEW_CREATORS"
 ]
