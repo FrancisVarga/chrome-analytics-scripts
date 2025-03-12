@@ -7,11 +7,15 @@ in MongoDB and Parquet format using the existing storage modules.
 
 Usage:
     python scripts/store_sample_data.py [--mongodb] [--parquet] [--limit N]
+                                       [--parallel] [--workers N] [--use-gpu]
 
 Options:
     --mongodb       Store data in MongoDB (default: True)
     --parquet       Store data in Parquet format (default: True)
     --limit N       Limit the number of records to process (default: no limit)
+    --parallel      Use parallel processing (default: False)
+    --workers N     Number of worker processes for parallel processing (default: CPU count)
+    --use-gpu       Use GPU acceleration when possible (default: False)
 """
 
 import os
@@ -21,19 +25,12 @@ import json
 import argparse
 import logging
 import uuid
+import multiprocessing
+from functools import partial
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from dateutil import parser as date_parser
 
-
-# Create logs directory if it doesn't exist
-logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
-os.makedirs(logs_dir, exist_ok=True)
-
-# Add parent directory to Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-# Now import modules from analytics_framework
 from analytics_framework.storage.mongodb.client import MongoDBClient
 from analytics_framework.storage.parquet_storage import ParquetStorage
 from analytics_framework.config import (
@@ -48,6 +45,17 @@ from analytics_framework.config import (
     PARQUET_MAX_RECORDS_PER_FILE,
     BATCH_SIZE
 )
+
+# Create logs directory if it doesn't exist
+logs_dir = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs'
+)
+os.makedirs(logs_dir, exist_ok=True)
+
+# Add parent directory to Python path
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..')
+))
 
 # Configure logging
 logging.basicConfig(
@@ -69,18 +77,39 @@ CHATBOT_PREFIX = 'chatbot_'
 
 def parse_args():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description='Store sample data in MongoDB and Parquet format')
-    parser.add_argument('--mongodb', action='store_true', help='Store data in MongoDB')
-    parser.add_argument('--parquet', action='store_true', help='Store data in Parquet format')
-    parser.add_argument('--chatbot', action='store_true', help='Process chatbot data')
-    parser.add_argument('--limit', type=int, help='Limit the number of records to process')
+    parser = argparse.ArgumentParser(
+        description='Store sample data in MongoDB and Parquet format'
+    )
+    parser.add_argument(
+        '--mongodb', action='store_true', help='Store data in MongoDB'
+    )
+    parser.add_argument(
+        '--parquet', action='store_true', help='Store data in Parquet format'
+    )
+    parser.add_argument(
+        '--chatbot', action='store_true', help='Process chatbot data'
+    )
+    parser.add_argument(
+        '--limit', type=int, help='Limit the number of records to process'
+    )
+    parser.add_argument(
+        '--parallel', action='store_true', help='Use parallel processing'
+    )
+    parser.add_argument(
+        '--workers', type=int, default=multiprocessing.cpu_count(),
+        help='Number of worker processes for parallel processing'
+    )
+    parser.add_argument(
+        '--use-gpu', action='store_true',
+        help='Use GPU acceleration when available'
+    )
     args = parser.parse_args()
-    
+
     # Default to both if neither is specified
     if not args.mongodb and not args.parquet:
         args.mongodb = True
         args.parquet = True
-    
+
     return args
 
 
@@ -102,18 +131,35 @@ def get_csv_files(directory: str, prefix: str) -> List[str]:
     return files
 
 
-def read_csv_file(file_path: str) -> List[Dict[str, Any]]:
+def read_csv_file(file_path: str, use_gpu: bool = False) -> List[Dict[str, Any]]:
     """
     Read a CSV file and return a list of dictionaries.
     
     Args:
         file_path: Path to the CSV file
+        use_gpu: Whether to use GPU acceleration for reading
         
     Returns:
         List of dictionaries, one for each row
     """
     records = []
     try:
+        if use_gpu:
+            # Try to use GPU-accelerated reading with PyTorch if available
+            try:
+                import torch
+                import pandas as pd
+                logger.info(f"Reading {file_path} with GPU acceleration")
+                df = pd.read_csv(file_path)
+                # Convert to list of dictionaries
+                records = df.to_dict('records')
+                return records
+            except (ImportError, ModuleNotFoundError):
+                logger.warning("GPU acceleration requested but PyTorch not available. Falling back to CPU.")
+            except Exception as e:
+                logger.warning(f"Error using GPU acceleration: {str(e)}. Falling back to CPU.")
+        
+        # Standard CSV reading
         with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -139,9 +185,9 @@ def parse_json_field(json_str: str, field_name: str = "unknown") -> Any:
         return {} if json_str == '{}' else [] if json_str == '[]' else json_str
     
     try:
-        return json.loads(json_str)
+        return json.loads(str(json_str))
     except json.JSONDecodeError:
-        logger.warning(f"Could not parse JSON in field '{field_name}': {json_str[:100]}...")
+        logger.warning(f"Could not parse JSON in field '{field_name}': {str(json_str)[:100]}...")
         return json_str
 
 
@@ -170,9 +216,82 @@ def format_date(date_str: Optional[str]) -> str:
         return datetime.now().isoformat()
 
 
+def process_conversation_file(file_path: str, limit: Optional[int] = None, use_gpu: bool = False) -> Dict[str, Dict[str, Any]]:
+    """
+    Process a single conversation file.
+    
+    Args:
+        file_path: Path to the conversation file
+        limit: Maximum number of conversations to process
+        use_gpu: Whether to use GPU acceleration
+        
+    Returns:
+        Dictionary mapping conversation IDs to conversation data
+    """
+    logger.info(f"Processing conversation file: {file_path}")
+    
+    records = read_csv_file(file_path, use_gpu=use_gpu)
+    logger.info(f"Read {len(records)} records from {file_path}")
+    
+    conversations = {}
+    for i, record in enumerate(records):
+        # Skip if we've reached the limit
+        if limit is not None and i >= limit:
+            break
+        
+        # Get conversation ID
+        conversation_id = record.get('id')
+        if not conversation_id:
+            # Use app_id as fallback
+            conversation_id = record.get('app_id')
+            if not conversation_id:
+                # Generate a new ID if none exists
+                conversation_id = str(uuid.uuid4())
+        
+        # Format dates
+        created_at = format_date(record.get('created_at'))
+        updated_at = format_date(record.get('updated_at')) if record.get('updated_at') else created_at
+        
+        # Parse JSON fields
+        inputs = parse_json_field(record.get('inputs', '{}'), 'inputs')
+        
+        # Convert to MongoDB format
+        conversation = {
+            '_id': conversation_id,
+            'app_id': record.get('app_id', ''),
+            'app_model_config_id': record.get('app_model_config_id', ''),
+            'model_provider': record.get('model_provider', ''),
+            'model_id': record.get('model_id', ''),
+            'mode': record.get('mode', ''),
+            'name': record.get('name', ''),
+            'summary': record.get('summary', ''),
+            'inputs': inputs,
+            'introduction': record.get('introduction', ''),
+            'system_instruction': record.get('system_instruction', ''),
+            'status': record.get('status', ''),
+            'from_source': record.get('from_source', ''),
+            'from_end_user_id': record.get('from_end_user_id', ''),
+            'from_account_id': record.get('from_account_id', ''),
+            'is_deleted': record.get('is_deleted', 'false') == 'true',
+            'invoke_from': record.get('invoke_from', ''),
+            'dialogue_count': int(record.get('dialogue_count', '0')),
+            'messages': [],
+            'categories': [],
+            'created_at': created_at,
+            'updated_at': updated_at
+        }
+        
+        conversations[conversation_id] = conversation
+        
+    return conversations
+
+
 def process_conversations(
     conversation_files: List[str],
-    limit: Optional[int] = None
+    limit: Optional[int] = None,
+    parallel: bool = False,
+    workers: int = None,
+    use_gpu: bool = False
 ) -> Dict[str, Dict[str, Any]]:
     """
     Process conversation files and return a dictionary of conversations.
@@ -180,87 +299,132 @@ def process_conversations(
     Args:
         conversation_files: List of conversation file paths
         limit: Maximum number of conversations to process
+        parallel: Whether to process files in parallel
+        workers: Number of worker processes to use
+        use_gpu: Whether to use GPU acceleration
         
     Returns:
         Dictionary mapping conversation IDs to conversation data
     """
-    conversations = {}
+    all_conversations = {}
+    
+    if parallel and len(conversation_files) > 1:
+        logger.info(f"Processing {len(conversation_files)} conversation files in parallel with {workers} workers")
+        
+        # Set per-file limit if global limit is set
+        per_file_limit = None
+        if limit is not None:
+            per_file_limit = max(1, limit // len(conversation_files))
+            logger.info(f"Setting per-file limit to {per_file_limit} records")
+        
+        # Create a partial function with the limit
+        process_func = partial(process_conversation_file, limit=per_file_limit, use_gpu=use_gpu)
+        
+        # Process files in parallel and merge results
+        with multiprocessing.Pool(workers) as pool:
+            results = pool.map(process_func, conversation_files)
+        
+        # Combine results
+        for file_conversations in results:
+            all_conversations.update(file_conversations)
+            
+        # Apply global limit if needed
+        if limit is not None and len(all_conversations) > limit:
+            logger.info(f"Limiting total conversations to {limit}")
+            all_conversations = dict(list(all_conversations.items())[:limit])
+    else:
+        # Process sequentially
+        processed_count = 0
+        
+        for file_path in conversation_files:
+            file_conversations = process_conversation_file(file_path, limit, use_gpu)
+            all_conversations.update(file_conversations)
+            
+            processed_count += len(file_conversations)
+            if limit is not None and processed_count >= limit:
+                break
+    
+    logger.info(f"Processed {len(all_conversations)} unique conversations")
+    return all_conversations
+
+
+def process_message_file(
+    file_path: str, 
+    conversations: Dict[str, Dict[str, Any]],
+    limit: Optional[int] = None,
+    use_gpu: bool = False
+) -> int:
+    """
+    Process a single message file and add messages to conversations.
+    
+    Args:
+        file_path: Path to the message file
+        conversations: Dictionary of conversations to update
+        limit: Maximum number of messages to process
+        use_gpu: Whether to use GPU acceleration
+        
+    Returns:
+        Number of messages processed
+    """
+    logger.info(f"Processing message file: {file_path}")
+    
+    records = read_csv_file(file_path, use_gpu=use_gpu)
+    logger.info(f"Read {len(records)} records from {file_path}")
+    
+    conversation_ids = set(conversations.keys())
     processed_count = 0
     
-    for file_path in conversation_files:
-        logger.info(f"Processing conversation file: {file_path}")
-        
-        records = read_csv_file(file_path)
-        logger.info(f"Read {len(records)} records from {file_path}")
-        
-        for record in records:
-            # Skip if we've reached the limit
-            if limit is not None and processed_count >= limit:
-                break
-            
-            # Get conversation ID
-            conversation_id = record.get('id')
-            if not conversation_id:
-                # Use app_id as fallback
-                conversation_id = record.get('app_id')
-                if not conversation_id:
-                    # Generate a new ID if none exists
-                    conversation_id = str(uuid.uuid4())
-            
-            # Format dates
-            created_at = format_date(record.get('created_at'))
-            updated_at = format_date(record.get('updated_at')) if record.get('updated_at') else created_at
-            
-            # Parse JSON fields
-            inputs = parse_json_field(record.get('inputs', '{}'), 'inputs')
-            
-            # Convert to MongoDB format
-            conversation = {
-                '_id': conversation_id,
-                'app_id': record.get('app_id', ''),
-                'app_model_config_id': record.get('app_model_config_id', ''),
-                'model_provider': record.get('model_provider', ''),
-                'model_id': record.get('model_id', ''),
-                'mode': record.get('mode', ''),
-                'name': record.get('name', ''),
-                'summary': record.get('summary', ''),
-                'inputs': inputs,
-                'introduction': record.get('introduction', ''),
-                'system_instruction': record.get('system_instruction', ''),
-                'status': record.get('status', ''),
-                'from_source': record.get('from_source', ''),
-                'from_end_user_id': record.get('from_end_user_id', ''),
-                'from_account_id': record.get('from_account_id', ''),
-                'is_deleted': record.get('is_deleted', 'false') == 'true',
-                'invoke_from': record.get('invoke_from', ''),
-                'dialogue_count': int(record.get('dialogue_count', '0')),
-                'messages': [],
-                'categories': [],
-                'created_at': created_at,
-                'updated_at': updated_at
-            }
-            
-            conversations[conversation_id] = conversation
-            processed_count += 1
-            
-            if processed_count % 100 == 0:
-                logger.info(f"Processed {processed_count} conversations")
-            
-            if limit is not None and processed_count >= limit:
-                logger.info(f"Reached limit of {limit} conversations")
-                break
-        
+    for record in records:
+        # Skip if we've reached the limit
         if limit is not None and processed_count >= limit:
             break
+        
+        # Get conversation ID
+        conversation_id = record.get('conversation_id')
+        if not conversation_id or conversation_id not in conversation_ids:
+            continue
+        
+        # Format date
+        created_at = format_date(record.get('created_at'))
+        
+        # Parse JSON field
+        message_content = parse_json_field(record.get('message', '{}'), 'message')
+        
+        # Convert to MongoDB format
+        message = {
+            'message_id': str(uuid.uuid4()),
+            'app_id': record.get('app_id', ''),
+            'model_provider': record.get('model_provider', ''),
+            'model_id': record.get('model_id', ''),
+            'query': record.get('query', ''),
+            'message': message_content,
+            'message_tokens': int(record.get('message_tokens', '0')),
+            'answer': record.get('answer', ''),
+            'answer_tokens': int(record.get('answer_tokens', '0')),
+            'total_price': float(record.get('total_price', '0')),
+            'currency': record.get('currency', 'USD'),
+            'from_source': record.get('from_source', ''),
+            'from_end_user_id': record.get('from_end_user_id', ''),
+            'from_account_id': record.get('from_account_id', ''),
+            'status': record.get('status', ''),
+            'error': record.get('error', ''),
+            'created_at': created_at
+        }
+        
+        # Add message to conversation
+        conversations[conversation_id]['messages'].append(message)
+        processed_count += 1
     
-    logger.info(f"Processed {len(conversations)} unique conversations")
-    return conversations
+    return processed_count
 
 
 def process_messages(
     message_files: List[str],
     conversations: Dict[str, Dict[str, Any]],
-    limit: Optional[int] = None
+    limit: Optional[int] = None,
+    parallel: bool = False,
+    workers: int = None,
+    use_gpu: bool = False
 ) -> None:
     """
     Process message files and add messages to conversations.
@@ -269,104 +433,244 @@ def process_messages(
         message_files: List of message file paths
         conversations: Dictionary of conversations to update
         limit: Maximum number of messages to process
+        parallel: Whether to process files in parallel
+        workers: Number of worker processes to use
+        use_gpu: Whether to use GPU acceleration
     """
-    processed_count = 0
-    conversation_ids = set(conversations.keys())
-    
-    for file_path in message_files:
-        logger.info(f"Processing message file: {file_path}")
+    if parallel and len(message_files) > 1:
+        logger.info(f"Processing {len(message_files)} message files in parallel with {workers} workers")
         
-        records = read_csv_file(file_path)
-        logger.info(f"Read {len(records)} records from {file_path}")
+        # Set per-file limit if global limit is set
+        per_file_limit = None
+        if limit is not None:
+            per_file_limit = max(1, limit // len(message_files))
+            logger.info(f"Setting per-file limit to {per_file_limit} messages")
         
-        for record in records:
-            # Skip if we've reached the limit
-            if limit is not None and processed_count >= limit:
-                break
+        # Use a manager to share the conversations dictionary between processes
+        with multiprocessing.Manager() as manager:
+            # Create a shared conversations dictionary
+            shared_conversations = manager.dict()
+            # Copy the data to the shared dictionary
+            for k, v in conversations.items():
+                shared_conversations[k] = v
             
-            # Get conversation ID
-            conversation_id = record.get('conversation_id')
-            if not conversation_id:
-                continue
+            # Create a partial function with fixed arguments
+            process_func = partial(process_message_file, 
+                                   conversations=shared_conversations,
+                                   limit=per_file_limit,
+                                   use_gpu=use_gpu)
             
-            # Skip if conversation doesn't exist
-            if conversation_id not in conversation_ids:
-                continue
+            # Process files in parallel
+            with multiprocessing.Pool(workers) as pool:
+                results = pool.map(process_func, message_files)
             
-            # Format date
-            created_at = format_date(record.get('created_at'))
+            # Get the updated conversations back
+            total_processed = sum(results)
             
-            # Parse JSON field
-            message_content = parse_json_field(record.get('message', '{}'), 'message')
-            
-            # Convert to MongoDB format
-            message = {
-                'message_id': str(uuid.uuid4()),
-                'app_id': record.get('app_id', ''),
-                'model_provider': record.get('model_provider', ''),
-                'model_id': record.get('model_id', ''),
-                'query': record.get('query', ''),
-                'message': message_content,
-                'message_tokens': int(record.get('message_tokens', '0')),
-                'answer': record.get('answer', ''),
-                'answer_tokens': int(record.get('answer_tokens', '0')),
-                'total_price': float(record.get('total_price', '0')),
-                'currency': record.get('currency', 'USD'),
-                'from_source': record.get('from_source', ''),
-                'from_end_user_id': record.get('from_end_user_id', ''),
-                'from_account_id': record.get('from_account_id', ''),
-                'status': record.get('status', ''),
-                'error': record.get('error', ''),
-                'created_at': created_at
-            }
-            
-            # Add message to conversation
-            conversations[conversation_id]['messages'].append(message)
-            processed_count += 1
-            
-            if processed_count % 100 == 0:
-                logger.info(f"Processed {processed_count} messages")
+            # Update the original conversations dict
+            for k, v in shared_conversations.items():
+                conversations[k] = v
+                
+            logger.info(f"Processed {total_processed} messages in parallel")
+    else:
+        # Process sequentially
+        processed_count = 0
+        
+        for file_path in message_files:
+            processed = process_message_file(file_path, conversations, limit, use_gpu)
+            processed_count += processed
             
             if limit is not None and processed_count >= limit:
                 logger.info(f"Reached limit of {limit} messages")
                 break
         
-        if limit is not None and processed_count >= limit:
-            break
-    
-    logger.info(f"Processed {processed_count} messages")
+        logger.info(f"Processed {processed_count} messages sequentially")
 
 
-def store_in_mongodb(conversations: Dict[str, Dict[str, Any]], batch_size: int = BATCH_SIZE) -> None:
+def process_chatbot_file(
+    file_path: str, 
+    limit: Optional[int] = None,
+    use_gpu: bool = False
+) -> List[Dict[str, Any]]:
     """
-    Store conversations in MongoDB.
+    Process a single chatbot data file.
     
     Args:
-        conversations: Dictionary of conversations to store
-        batch_size: Number of conversations to store in a batch
+        file_path: Path to the chatbot data file
+        limit: Maximum number of records to process
+        use_gpu: Whether to use GPU acceleration
+        
+    Returns:
+        List of processed chatbot data records
     """
-    logger.info(f"Storing {len(conversations)} conversations in MongoDB")
+    logger.info(f"Processing chatbot data file: {file_path}")
     
-    # Initialize MongoDB client
-    mongodb_client = MongoDBClient(
-        uri=MONGODB_URI,
-        database=MONGODB_DATABASE
-    )
+    records = read_csv_file(file_path, use_gpu=use_gpu)
+    logger.info(f"Read {len(records)} records from {file_path}")
+    
+    processed_records = []
+    for i, record in enumerate(records):
+        # Skip if we've reached the limit
+        if limit is not None and i >= limit:
+            break
+        
+        # Format dates
+        created_at = format_date(record.get('CreatedAt'))
+        updated_at = format_date(record.get('UpdatedAt')) if record.get('UpdatedAt') else created_at
+        created_at_dify_date = format_date(record.get('created_at_dify_date'))
+        
+        # Parse JSON fields
+        translation = parse_json_field(record.get('translation', ''), 'translation')
+        analysis = parse_json_field(record.get('analysis', ''), 'analysis')
+        risk_analysis = parse_json_field(record.get('risk_analysis', ''), 'risk_analysis')
+        conversational_analysis = parse_json_field(record.get('conversational_analysis', ''), 'conversational_analysis')
+        recommendations = parse_json_field(record.get('recommendations', ''), 'recommendations')
+        categorization = parse_json_field(record.get('categorization', ''), 'categorization')
+        n8n_data = parse_json_field(record.get('n8n_data', ''), 'n8n_data')
+        success_analysis = parse_json_field(record.get('success_analysis', ''), 'success_analysis')
+        
+        # Convert to MongoDB format
+        processed_record = {
+            "_id": record.get('chatbot_data_id') or str(uuid.uuid4()),
+            "original_id": record.get('Id', ''),
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "conversation_id": record.get('conversation_id', ''),
+            "translation": translation,
+            "analysis": analysis,
+            "risk_analysis": risk_analysis,
+            "conversational_analysis": conversational_analysis,
+            "recommendations": recommendations,
+            "categorization": categorization,
+            "task_id": record.get('task_id', ''),
+            "n8n_data": n8n_data,
+            "success_analysis": success_analysis,
+            "success": record.get('success', ''),
+            "success_rating": record.get('success_rating', ''),
+            "dify_workflow_id": record.get('dify_workflow_id', ''),
+            "click_agent": record.get('click_agent', ''),
+            "created_at_dify_date": created_at_dify_date,
+            "membercode": record.get('membercode', ''),
+            "empty_conversation_id": record.get('empty_conversation_id', '')
+        }
+        
+        processed_records.append(processed_record)
+    
+    return processed_records
+
+
+def process_chatbot_data(
+    chatbot_files: List[str],
+    limit: Optional[int] = None,
+    parallel: bool = False,
+    workers: int = None,
+    use_gpu: bool = False
+) -> List[Dict[str, Any]]:
+    """
+    Process chatbot data files and return a list of chatbot data records.
+    
+    Args:
+        chatbot_files: List of chatbot data file paths
+        limit: Maximum number of records to process
+        parallel: Whether to process files in parallel
+        workers: Number of worker processes to use
+        use_gpu: Whether to use GPU acceleration
+        
+    Returns:
+        List of processed chatbot data records
+    """
+    all_records = []
+    
+    if parallel and len(chatbot_files) > 1:
+        logger.info(f"Processing {len(chatbot_files)} chatbot files in parallel with {workers} workers")
+        
+        # Set per-file limit if global limit is set
+        per_file_limit = None
+        if limit is not None:
+            per_file_limit = max(1, limit // len(chatbot_files))
+            logger.info(f"Setting per-file limit to {per_file_limit} records")
+        
+        # Create a partial function with the limit
+        process_func = partial(process_chatbot_file, limit=per_file_limit, use_gpu=use_gpu)
+        
+        # Process files in parallel and merge results
+        with multiprocessing.Pool(workers) as pool:
+            results = pool.map(process_func, chatbot_files)
+        
+        # Combine results
+        for file_records in results:
+            all_records.extend(file_records)
+            
+        # Apply global limit if needed
+        if limit is not None and len(all_records) > limit:
+            logger.info(f"Limiting total chatbot records to {limit}")
+            all_records = all_records[:limit]
+    else:
+        # Process sequentially
+        processed_count = 0
+        
+        for file_path in chatbot_files:
+            file_records = process_chatbot_file(file_path, limit, use_gpu)
+            all_records.extend(file_records)
+            
+            processed_count += len(file_records)
+            if limit is not None and processed_count >= limit:
+                all_records = all_records[:limit]
+                break
+    
+    logger.info(f"Processed {len(all_records)} chatbot records total")
+    return all_records
+
+
+def store_conversation_batch(batch: List[Dict[str, Any]]) -> None:
+    """
+    Store a batch of conversations in MongoDB, creating a new client instance per worker.
+    
+    Args:
+        batch: List of conversations to store
+    """
+    try:
+        # Create a new MongoDB client instance for this worker
+        mongodb_client = MongoDBClient(
+            uri=MONGODB_URI,
+            database=MONGODB_DATABASE
+        )
+        
+        for conversation in batch:
+            mongodb_client.conversation.save_conversation(conversation)
+    except Exception as e:
+        logger.error(f"Error storing batch in MongoDB: {str(e)}")
+
+def store_in_mongodb(conversations: Dict[str, Dict[str, Any]], batch_size: int = BATCH_SIZE, parallel: bool = False, workers: int = None) -> None:
+    logger.info(f"Storing {len(conversations)} conversations in MongoDB")
     
     # Store conversations in batches
     conversation_list = list(conversations.values())
-    for i in range(0, len(conversation_list), batch_size):
-        batch = conversation_list[i:i+batch_size]
-        logger.info(f"Storing batch of {len(batch)} conversations in MongoDB")
+    if parallel and len(conversation_list) > 1:
+        logger.info(f"Storing conversations in parallel with {workers} workers")
         
-        try:
-            # Save each conversation
-            for conversation in batch:
-                mongodb_client.conversation.save_conversation(conversation)
+        # Process batches in parallel
+        with multiprocessing.Pool(workers) as pool:
+            pool.map(store_conversation_batch, [conversation_list[i:i+batch_size] for i in range(0, len(conversation_list), batch_size)])
+    else:
+        # Create MongoDB client for sequential processing
+        mongodb_client = MongoDBClient(
+            uri=MONGODB_URI,
+            database=MONGODB_DATABASE
+        )
+        
+        for i in range(0, len(conversation_list), batch_size):
+            batch = conversation_list[i:i+batch_size]
+            logger.info(f"Storing batch of {len(batch)} conversations in MongoDB")
             
-            logger.info(f"Stored batch of {len(batch)} conversations in MongoDB")
-        except Exception as e:
-            logger.error(f"Error storing batch in MongoDB: {str(e)}")
+            try:
+                # Save each conversation
+                for conversation in batch:
+                    mongodb_client.conversation.save_conversation(conversation)
+                
+                logger.info(f"Stored batch of {len(batch)} conversations in MongoDB")
+            except Exception as e:
+                logger.error(f"Error storing batch in MongoDB: {str(e)}")
     
     logger.info(f"Stored {len(conversations)} conversations in MongoDB")
 
@@ -406,91 +710,6 @@ def store_in_parquet(conversations: Dict[str, Dict[str, Any]], batch_size: int =
             logger.error(f"Error storing batch in Parquet format: {str(e)}")
     
     logger.info(f"Stored {len(conversations)} conversations in Parquet format")
-
-
-def process_chatbot_data(
-    chatbot_files: List[str],
-    limit: Optional[int] = None
-) -> List[Dict[str, Any]]:
-    """
-    Process chatbot data files and return a list of chatbot data records.
-    
-    Args:
-        chatbot_files: List of chatbot data file paths
-        limit: Maximum number of records to process
-        
-    Returns:
-        List of processed chatbot data records
-    """
-    processed_records = []
-    processed_count = 0
-    
-    for file_path in chatbot_files:
-        logger.info(f"Processing chatbot data file: {file_path}")
-        
-        records = read_csv_file(file_path)
-        logger.info(f"Read {len(records)} records from {file_path}")
-        
-        for record in records:
-            # Skip if we've reached the limit
-            if limit is not None and processed_count >= limit:
-                break
-            
-            # Format dates
-            created_at = format_date(record.get('CreatedAt'))
-            updated_at = format_date(record.get('UpdatedAt')) if record.get('UpdatedAt') else created_at
-            created_at_dify_date = format_date(record.get('created_at_dify_date'))
-            
-            # Parse JSON fields
-            translation = parse_json_field(record.get('translation', ''), 'translation')
-            analysis = parse_json_field(record.get('analysis', ''), 'analysis')
-            risk_analysis = parse_json_field(record.get('risk_analysis', ''), 'risk_analysis')
-            conversational_analysis = parse_json_field(record.get('conversational_analysis', ''), 'conversational_analysis')
-            recommendations = parse_json_field(record.get('recommendations', ''), 'recommendations')
-            categorization = parse_json_field(record.get('categorization', ''), 'categorization')
-            n8n_data = parse_json_field(record.get('n8n_data', ''), 'n8n_data')
-            success_analysis = parse_json_field(record.get('success_analysis', ''), 'success_analysis')
-            
-            # Convert to MongoDB format
-            processed_record = {
-                "_id": record.get('chatbot_data_id') or str(uuid.uuid4()),
-                "original_id": record.get('Id', ''),
-                "created_at": created_at,
-                "updated_at": updated_at,
-                "conversation_id": record.get('conversation_id', ''),
-                "translation": translation,
-                "analysis": analysis,
-                "risk_analysis": risk_analysis,
-                "conversational_analysis": conversational_analysis,
-                "recommendations": recommendations,
-                "categorization": categorization,
-                "task_id": record.get('task_id', ''),
-                "n8n_data": n8n_data,
-                "success_analysis": success_analysis,
-                "success": record.get('success', ''),
-                "success_rating": record.get('success_rating', ''),
-                "dify_workflow_id": record.get('dify_workflow_id', ''),
-                "click_agent": record.get('click_agent', ''),
-                "created_at_dify_date": created_at_dify_date,
-                "membercode": record.get('membercode', ''),
-                "empty_conversation_id": record.get('empty_conversation_id', '')
-            }
-            
-            processed_records.append(processed_record)
-            processed_count += 1
-            
-            if processed_count % 100 == 0:
-                logger.info(f"Processed {processed_count} chatbot records")
-            
-            if limit is not None and processed_count >= limit:
-                logger.info(f"Reached limit of {limit} chatbot records")
-                break
-        
-        if limit is not None and processed_count >= limit:
-            break
-    
-    logger.info(f"Processed {len(processed_records)} chatbot records total")
-    return processed_records
 
 
 def store_chatbot_data_in_mongodb(records: List[Dict[str, Any]], batch_size: int = BATCH_SIZE) -> None:
@@ -534,6 +753,25 @@ def store_chatbot_data_in_mongodb(records: List[Dict[str, Any]], batch_size: int
     logger.info(f"Stored {len(records)} chatbot records in MongoDB")
 
 
+def check_gpu_availability() -> bool:
+    """
+    Check if GPU acceleration is available via PyTorch.
+    
+    Returns:
+        Boolean indicating whether GPU acceleration is available
+    """
+    try:
+        import torch
+        logger.info("GPU acceleration is available via PyTorch")
+        return True
+    except (ImportError, ModuleNotFoundError):
+        logger.info("GPU acceleration is not available (PyTorch not installed)")
+        return False
+    except Exception as e:
+        logger.warning(f"Error checking GPU availability: {str(e)}")
+        return False
+
+
 def main():
     """Main function to store sample data."""
     args = parse_args()
@@ -543,6 +781,16 @@ def main():
     logger.info(f"Parquet storage: {args.parquet}")
     logger.info(f"Process chatbot data: {args.chatbot}")
     logger.info(f"Record limit: {args.limit if args.limit else 'No limit'}")
+    logger.info(f"Parallel processing: {args.parallel}")
+    if args.parallel:
+        logger.info(f"Number of workers: {args.workers}")
+    logger.info(f"GPU acceleration: {args.use_gpu}")
+    
+    # Check GPU availability if requested
+    if args.use_gpu:
+        gpu_available = check_gpu_availability()
+        if not gpu_available:
+            logger.warning("GPU acceleration was requested but is not available. Continuing with CPU.")
     
     if args.chatbot:
         # Process chatbot data
@@ -550,7 +798,13 @@ def main():
         logger.info(f"Found {len(chatbot_files)} chatbot data files")
         
         if chatbot_files:
-            chatbot_records = process_chatbot_data(chatbot_files, args.limit)
+            chatbot_records = process_chatbot_data(
+                chatbot_files, 
+                args.limit,
+                parallel=args.parallel,
+                workers=args.workers,
+                use_gpu=args.use_gpu
+            )
             
             if args.mongodb and chatbot_records:
                 store_chatbot_data_in_mongodb(chatbot_records, batch_size=1000)
@@ -565,14 +819,27 @@ def main():
     logger.info(f"Found {len(message_files)} message files")
     
     # Process conversations
-    conversations = process_conversations(conversation_files, args.limit)
+    conversations = process_conversations(
+        conversation_files, 
+        args.limit,
+        parallel=args.parallel,
+        workers=args.workers,
+        use_gpu=args.use_gpu
+    )
     
     # Process messages
-    process_messages(message_files, conversations, args.limit)
+    process_messages(
+        message_files, 
+        conversations, 
+        args.limit,
+        parallel=args.parallel,
+        workers=args.workers,
+        use_gpu=args.use_gpu
+    )
     
     # Store data
     if args.mongodb:
-        store_in_mongodb(conversations, batch_size=1000)
+        store_in_mongodb(conversations, batch_size=1000, parallel=args.parallel, workers=args.workers)
     
     if args.parquet:
         store_in_parquet(conversations)

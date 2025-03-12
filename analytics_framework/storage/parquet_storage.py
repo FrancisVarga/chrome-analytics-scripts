@@ -102,12 +102,38 @@ class ParquetStorage:
         if not partition_values:
             return base_path
         
-        # Add partition directories
+        # Add partition directories without "key=" prefix
         partition_path = ""
-        for key, value in partition_values.items():
-            partition_path = os.path.join(partition_path, f"{key}={value}")
+        for key in self.partition_by:
+            if key in partition_values:
+                partition_path = os.path.join(partition_path, partition_values[key])
         
         return os.path.join(base_path, partition_path)
+    
+    def _get_path_prefix_for_file(self, data_type: str, partition_values: Optional[Dict[str, str]] = None) -> str:
+        """
+        Get the prefix for a file name based on partition values.
+        
+        Args:
+            data_type: Type of data (e.g., 'conversations', 'messages')
+            partition_values: Dictionary of partition values
+            
+        Returns:
+            File prefix string
+        """
+        if not partition_values:
+            return ""
+        
+        # Create a prefix for the filename using partition values
+        prefix_parts = []
+        for key in self.partition_by:
+            if key in partition_values:
+                prefix_parts.append(partition_values[key])
+        
+        if prefix_parts:
+            return "_".join(prefix_parts) + "_"
+        
+        return ""
     
     def _extract_partition_values(self, record: Dict[str, Any]) -> Dict[str, str]:
         """
@@ -211,8 +237,11 @@ class ParquetStorage:
             # Get path
             path = self._get_path("conversations", partition_values)
             
+            # Get file prefix
+            file_prefix = self._get_path_prefix_for_file("conversations", partition_values)
+            
             # Store DataFrame
-            self._store_dataframe(df, path, "conversations.parquet")
+            self._store_dataframe(df, path, f"{file_prefix}conversations.parquet")
             stored_paths.append(path)
             
             # Extract and store messages
@@ -229,7 +258,7 @@ class ParquetStorage:
             if messages:
                 messages_df = self._records_to_dataframe(messages)
                 messages_path = os.path.join(path, "messages")
-                self._store_dataframe(messages_df, messages_path, "messages.parquet")
+                self._store_dataframe(messages_df, messages_path, f"{file_prefix}messages.parquet")
                 stored_paths.append(messages_path)
             
             # Extract and store categories
@@ -246,7 +275,7 @@ class ParquetStorage:
             if categories:
                 categories_df = self._records_to_dataframe(categories)
                 categories_path = os.path.join(path, "categories")
-                self._store_dataframe(categories_df, categories_path, "categories.parquet")
+                self._store_dataframe(categories_df, categories_path, f"{file_prefix}categories.parquet")
                 stored_paths.append(categories_path)
         
         return stored_paths
@@ -352,11 +381,16 @@ class ParquetStorage:
         try:
             if self.use_s3:
                 # For S3, we use pyarrow's write_to_dataset
+                # Modified to include {i} in basename_template for partitioning
+                base_filename = os.path.splitext(filename)[0]
+                extension = os.path.splitext(filename)[1]
+                basename_template = f"{base_filename}_{{i}}{extension}"
+                
                 pq.write_to_dataset(
                     table,
                     root_path=path,
                     filesystem=self.fs,
-                    basename_template=filename,
+                    basename_template=basename_template,
                     compression=self.compression,
                     row_group_size=self.row_group_size,
                     data_page_size=self.page_size,
@@ -402,8 +436,11 @@ class ParquetStorage:
         # Get path
         path = self._get_path("conversations", partition_values)
         
+        # Get file prefix
+        file_prefix = self._get_path_prefix_for_file("conversations", partition_values)
+        
         # Read DataFrame
-        return self._read_dataframe(path, "conversations.parquet", filters)
+        return self._read_dataframe(path, f"{file_prefix}conversations.parquet", filters)
     
     def read_messages(
         self,
@@ -428,8 +465,11 @@ class ParquetStorage:
         path = self._get_path("conversations", partition_values)
         messages_path = os.path.join(path, "messages")
         
+        # Get file prefix
+        file_prefix = self._get_path_prefix_for_file("conversations", partition_values)
+        
         # Read DataFrame
-        return self._read_dataframe(messages_path, "messages.parquet", filters)
+        return self._read_dataframe(messages_path, f"{file_prefix}messages.parquet", filters)
     
     def read_categories(
         self,
@@ -454,8 +494,11 @@ class ParquetStorage:
         path = self._get_path("conversations", partition_values)
         categories_path = os.path.join(path, "categories")
         
+        # Get file prefix
+        file_prefix = self._get_path_prefix_for_file("conversations", partition_values)
+        
         # Read DataFrame
-        return self._read_dataframe(categories_path, "categories.parquet", filters)
+        return self._read_dataframe(categories_path, f"{file_prefix}categories.parquet", filters)
     
     def read_user_analytics(
         self,
@@ -572,48 +615,42 @@ class ParquetStorage:
         base_path = self._get_path(data_type)
         
         try:
+            partitions = []
+            partition_keys = self.partition_by.copy()
+            
             if self.use_s3:
                 # List directories in S3
                 paths = self.fs.glob(f"{base_path}/**/*.parquet")
                 
-                # Extract partition values from paths
-                partitions = []
                 for path in paths:
-                    partition_values = {}
-                    
-                    # Remove base path and filename
-                    relative_path = path.replace(base_path, "").split("/")[:-1]
-                    
-                    for part in relative_path:
-                        if "=" in part:
-                            key, value = part.split("=")
-                            partition_values[key] = value
-                    
-                    if partition_values:
-                        partitions.append(partition_values)
-                
-                return partitions
+                    # Extract partition values from path structure
+                    relative_path = path.replace(base_path, "").strip("/").split("/")
+                    if len(relative_path) >= len(partition_keys):
+                        partition_values = {}
+                        # Assuming directory structure matches partition keys order
+                        for i, key in enumerate(partition_keys):
+                            if i < len(relative_path) - 1:  # Skip the filename
+                                partition_values[key] = relative_path[i]
+                        
+                        if partition_values and partition_values not in partitions:
+                            partitions.append(partition_values)
             else:
                 # List directories in local filesystem
-                partitions = []
-                
-                for root, dirs, files in os.walk(base_path):
+                for root, _, files in os.walk(base_path):
                     if any(f.endswith(".parquet") for f in files):
-                        # Extract partition values from path
-                        partition_values = {}
-                        
-                        # Remove base path
+                        # Extract partition values from path structure
                         relative_path = os.path.relpath(root, base_path).split(os.path.sep)
-                        
-                        for part in relative_path:
-                            if "=" in part:
-                                key, value = part.split("=")
-                                partition_values[key] = value
-                        
-                        if partition_values:
-                            partitions.append(partition_values)
-                
-                return partitions
+                        if len(relative_path) >= len(partition_keys):
+                            partition_values = {}
+                            # Assuming directory structure matches partition keys order
+                            for i, key in enumerate(partition_keys):
+                                if i < len(relative_path):
+                                    partition_values[key] = relative_path[i]
+                            
+                            if partition_values and partition_values not in partitions:
+                                partitions.append(partition_values)
+            
+            return partitions
         except Exception as e:
             self.logger.error(f"Error listing partitions for {data_type}: {str(e)}")
             return []

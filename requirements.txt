@@ -82,3 +82,14 @@ zipp==3.21.0
 
 # New dependencies added automatically
 -e file:///D:/NeoProjects/chrome-analytics-scripts
+
+# New dependencies added automatically
+-e file:///D:/NeoProjects/chrome-analytics-scripts
+filelock==3.13.1
+mpmath==1.3.0
+networkx==3.3
+pillow==11.0.0
+sympy==1.13.1
+torch==2.6.0+cu126
+torchaudio==2.6.0+cu126
+torchvision==0.21.0+cu126
