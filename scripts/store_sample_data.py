@@ -61,8 +61,8 @@ logger = logging.getLogger(__name__)
 
 # Constants
 SAMPLE_DATA_DIR = 'sample_data'
-CONVERSATION_PREFIX = 'conversations_exported_'
-MESSAGE_PREFIX = 'messages_exported_'
+CONVERSATION_PREFIX = 'conversations_'
+MESSAGE_PREFIX = 'messages_'
 CHATBOT_PREFIX = 'chatbot_'
 
 
@@ -505,7 +505,6 @@ def main():
     logger.info(f"Parquet storage: {args.parquet}")
     logger.info(f"Process chatbot data: {args.chatbot}")
     logger.info(f"Record limit: {args.limit if args.limit else 'No limit'}")
-    args.chatbot = True
     
     if args.chatbot:
         # Process chatbot data
@@ -516,30 +515,30 @@ def main():
             chatbot_records = process_chatbot_data(chatbot_files, args.limit)
             
             if args.mongodb and chatbot_records:
-                store_chatbot_data_in_mongodb(chatbot_records)
+                store_chatbot_data_in_mongodb(chatbot_records, batch_size=1000)
         else:
             logger.warning(f"No chatbot data files found with prefix '{CHATBOT_PREFIX}' in {SAMPLE_DATA_DIR}")
-    else:
-        # Process conversation and message data
-        conversation_files = get_csv_files(SAMPLE_DATA_DIR, CONVERSATION_PREFIX)
-        message_files = get_csv_files(SAMPLE_DATA_DIR, MESSAGE_PREFIX)
-        
-        logger.info(f"Found {len(conversation_files)} conversation files")
-        logger.info(f"Found {len(message_files)} message files")
-        
-        # Process conversations
-        conversations = process_conversations(conversation_files, args.limit)
-        
-        # Process messages
-        process_messages(message_files, conversations, args.limit)
-        
-        # Store data
-        if args.mongodb:
-            store_in_mongodb(conversations)
-        
-        if args.parquet:
-            store_in_parquet(conversations)
     
+    # Process conversation and message data
+    conversation_files = get_csv_files(SAMPLE_DATA_DIR, CONVERSATION_PREFIX)
+    message_files = get_csv_files(SAMPLE_DATA_DIR, MESSAGE_PREFIX)
+    
+    logger.info(f"Found {len(conversation_files)} conversation files")
+    logger.info(f"Found {len(message_files)} message files")
+    
+    # Process conversations
+    conversations = process_conversations(conversation_files, args.limit)
+    
+    # Process messages
+    process_messages(message_files, conversations, args.limit)
+    
+    # Store data
+    if args.mongodb:
+        store_in_mongodb(conversations, batch_size=1000)
+    
+    if args.parquet:
+        store_in_parquet(conversations)
+
     logger.info("Sample data storage process completed")
 
 
