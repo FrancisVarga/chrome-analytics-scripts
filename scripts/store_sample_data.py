@@ -266,20 +266,27 @@ def process_conversation_file(file_path: str, limit: Optional[int] = None, use_g
     records = read_csv_file(file_path, use_gpu=use_gpu)
     logger.info(f"Read {len(records)} records from {file_path}")
     
+    # Log a sample record to understand the structure
+    if records and len(records) > 0:
+        logger.debug(f"Sample conversation record keys: {list(records[0].keys())}")
+    
     conversations = {}
     for i, record in enumerate(records):
         # Skip if we've reached the limit
         if limit is not None and i >= limit:
             break
         
-        # Get conversation ID
-        conversation_id = record.get('id')
-        if not conversation_id:
+        # Get conversation ID - store both 'id' and original ID for matching
+        original_id = record.get('id')
+        if not original_id:
             # Use app_id as fallback
-            conversation_id = record.get('app_id')
-            if not conversation_id:
+            original_id = record.get('app_id')
+            if not original_id:
                 # Generate a new ID if none exists
-                conversation_id = str(uuid.uuid4())
+                original_id = str(uuid.uuid4())
+        
+        # Use the original ID as the key for the conversations dictionary
+        conversation_id = original_id
         
         # Format dates
         created_at = format_date(record.get('created_at'))
@@ -401,18 +408,39 @@ def process_message_file(
     records = read_csv_file(file_path, use_gpu=use_gpu)
     logger.info(f"Read {len(records)} records from {file_path}")
     
+    # Log a sample record to understand the structure
+    if records and len(records) > 0:
+        logger.debug(f"Sample message record keys: {list(records[0].keys())}")
+    
     conversation_ids = set(conversations.keys())
     processed_count = 0
+    skipped_count = 0
+    matched_count = 0
     
     for record in records:
         # Skip if we've reached the limit
         if limit is not None and processed_count >= limit:
             break
         
-        # Get conversation ID
-        conversation_id = record.get('conversation_id')
+        # Get conversation ID - try different possible field names
+        conversation_id = None
+        
+        # First try the standard field name
+        if record.get('conversation_id'):
+            conversation_id = record.get('conversation_id')
+        
+        # If not found, check if there's an ID field that might be the conversation ID
+        if not conversation_id and record.get('id'):
+            # This might be the conversation ID in some formats
+            potential_id = record.get('id')
+            if potential_id in conversation_ids:
+                conversation_id = potential_id
+        
         if not conversation_id or conversation_id not in conversation_ids:
+            skipped_count += 1
             continue
+        
+        matched_count += 1
         
         # Format date
         created_at = format_date(record.get('created_at'))
@@ -441,6 +469,9 @@ def process_message_file(
         # Add message to conversation
         conversations[conversation_id]['messages'].append(message)
         processed_count += 1
+    
+    # Log statistics about message processing
+    logger.info(f"Messages processed: {processed_count}, matched: {matched_count}, skipped: {skipped_count}")
     
     return processed_count
 

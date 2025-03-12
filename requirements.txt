@@ -105,3 +105,6 @@ torchvision==0.21.0+cu126
 
 # New dependencies added automatically
 -e file:///D:/NeoProjects/chrome-analytics-scripts
+
+# New dependencies added automatically
+-e file:///D:/NeoProjects/chrome-analytics-scripts
