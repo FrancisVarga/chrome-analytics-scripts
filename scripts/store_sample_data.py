@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 SAMPLE_DATA_DIR = 'sample_data'
 CONVERSATION_PREFIX = 'conversations_exported_'
 MESSAGE_PREFIX = 'messages_exported_'
+CHATBOT_PREFIX = 'chatbot_'
 
 
 def parse_args():
@@ -70,6 +71,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Store sample data in MongoDB and Parquet format')
     parser.add_argument('--mongodb', action='store_true', help='Store data in MongoDB')
     parser.add_argument('--parquet', action='store_true', help='Store data in Parquet format')
+    parser.add_argument('--chatbot', action='store_true', help='Process chatbot data')
     parser.add_argument('--limit', type=int, help='Limit the number of records to process')
     args = parser.parse_args()
     
@@ -378,6 +380,122 @@ def store_in_parquet(conversations: Dict[str, Dict[str, Any]], batch_size: int =
     logger.info(f"Stored {len(conversations)} conversations in Parquet format")
 
 
+def process_chatbot_data(
+    chatbot_files: List[str],
+    limit: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """
+    Process chatbot data files and return a list of chatbot data records.
+    
+    Args:
+        chatbot_files: List of chatbot data file paths
+        limit: Maximum number of records to process
+        
+    Returns:
+        List of processed chatbot data records
+    """
+    processed_records = []
+    processed_count = 0
+    
+    for file_path in chatbot_files:
+        logger.info(f"Processing chatbot data file: {file_path}")
+        
+        records = read_csv_file(file_path)
+        logger.info(f"Read {len(records)} records from {file_path}")
+        
+        for record in records:
+            # Skip if we've reached the limit
+            if limit is not None and processed_count >= limit:
+                break
+            
+            # Format dates
+            created_at = format_date(record.get('CreatedAt'))
+            updated_at = format_date(record.get('UpdatedAt')) if record.get('UpdatedAt') else created_at
+            created_at_dify_date = format_date(record.get('created_at_dify_date'))
+            
+            # Convert to MongoDB format
+            processed_record = {
+                "_id": record.get('chatbot_data_id') or str(uuid.uuid4()),
+                "original_id": record.get('Id', ''),
+                "created_at": created_at,
+                "updated_at": updated_at,
+                "conversation_id": record.get('conversation_id', ''),
+                "translation": record.get('translation', ''),
+                "analysis": record.get('analysis', ''),
+                "risk_analysis": record.get('risk_analysis', ''),
+                "conversational_analysis": record.get('conversational_analysis', ''),
+                "recommendations": record.get('recommendations', ''),
+                "categorization": record.get('categorization', ''),
+                "task_id": record.get('task_id', ''),
+                "n8n_data": record.get('n8n_data', ''),
+                "success_analysis": record.get('success_analysis', ''),
+                "success": record.get('success', ''),
+                "success_rating": record.get('success_rating', ''),
+                "dify_workflow_id": record.get('dify_workflow_id', ''),
+                "click_agent": record.get('click_agent', ''),
+                "created_at_dify_date": created_at_dify_date,
+                "membercode": record.get('membercode', ''),
+                "empty_conversation_id": record.get('empty_conversation_id', '')
+            }
+            
+            processed_records.append(processed_record)
+            processed_count += 1
+            
+            if processed_count % 100 == 0:
+                logger.info(f"Processed {processed_count} chatbot records")
+            
+            if limit is not None and processed_count >= limit:
+                logger.info(f"Reached limit of {limit} chatbot records")
+                break
+        
+        if limit is not None and processed_count >= limit:
+            break
+    
+    logger.info(f"Processed {len(processed_records)} chatbot records total")
+    return processed_records
+
+
+def store_chatbot_data_in_mongodb(records: List[Dict[str, Any]], batch_size: int = BATCH_SIZE) -> None:
+    """
+    Store chatbot data records in MongoDB.
+    
+    Args:
+        records: List of chatbot data records to store
+        batch_size: Number of records to store in a batch
+    """
+    logger.info(f"Storing {len(records)} chatbot records in MongoDB")
+    
+    # Initialize MongoDB client
+    mongodb_client = MongoDBClient(
+        uri=MONGODB_URI,
+        database=MONGODB_DATABASE
+    )
+    
+    # Create a new collection for chatbot data if it doesn't exist
+    collection_name = "analytics_reports"
+    
+    # Store records in batches
+    for i in range(0, len(records), batch_size):
+        batch = records[i:i+batch_size]
+        logger.info(f"Storing batch of {len(batch)} chatbot records in MongoDB")
+        
+        try:
+            # Insert batch
+            for record in batch:
+                mongodb_client.base_client.replace_one(
+                    collection_name,
+                    {"_id": record["_id"]},
+                    record,
+                    upsert=True
+                )
+            
+            logger.info(f"Stored batch of {len(batch)} chatbot records in MongoDB")
+        except Exception as e:
+            logger.error(f"Error storing chatbot batch in MongoDB: {str(e)}")
+    
+    logger.info(f"Stored {len(records)} chatbot records in MongoDB")
+
+
 def main():
     """Main function to store sample data."""
     args = parse_args()
@@ -385,27 +503,42 @@ def main():
     logger.info("Starting sample data storage process")
     logger.info(f"MongoDB storage: {args.mongodb}")
     logger.info(f"Parquet storage: {args.parquet}")
+    logger.info(f"Process chatbot data: {args.chatbot}")
     logger.info(f"Record limit: {args.limit if args.limit else 'No limit'}")
+    args.chatbot = True
     
-    # Get CSV files
-    conversation_files = get_csv_files(SAMPLE_DATA_DIR, CONVERSATION_PREFIX)
-    message_files = get_csv_files(SAMPLE_DATA_DIR, MESSAGE_PREFIX)
-    
-    logger.info(f"Found {len(conversation_files)} conversation files")
-    logger.info(f"Found {len(message_files)} message files")
-    
-    # Process conversations
-    conversations = process_conversations(conversation_files, args.limit)
-    
-    # Process messages
-    process_messages(message_files, conversations, args.limit)
-    
-    # Store data
-    if args.mongodb:
-        store_in_mongodb(conversations)
-    
-    if args.parquet:
-        store_in_parquet(conversations)
+    if args.chatbot:
+        # Process chatbot data
+        chatbot_files = get_csv_files(SAMPLE_DATA_DIR, CHATBOT_PREFIX)
+        logger.info(f"Found {len(chatbot_files)} chatbot data files")
+        
+        if chatbot_files:
+            chatbot_records = process_chatbot_data(chatbot_files, args.limit)
+            
+            if args.mongodb and chatbot_records:
+                store_chatbot_data_in_mongodb(chatbot_records)
+        else:
+            logger.warning(f"No chatbot data files found with prefix '{CHATBOT_PREFIX}' in {SAMPLE_DATA_DIR}")
+    else:
+        # Process conversation and message data
+        conversation_files = get_csv_files(SAMPLE_DATA_DIR, CONVERSATION_PREFIX)
+        message_files = get_csv_files(SAMPLE_DATA_DIR, MESSAGE_PREFIX)
+        
+        logger.info(f"Found {len(conversation_files)} conversation files")
+        logger.info(f"Found {len(message_files)} message files")
+        
+        # Process conversations
+        conversations = process_conversations(conversation_files, args.limit)
+        
+        # Process messages
+        process_messages(message_files, conversations, args.limit)
+        
+        # Store data
+        if args.mongodb:
+            store_in_mongodb(conversations)
+        
+        if args.parquet:
+            store_in_parquet(conversations)
     
     logger.info("Sample data storage process completed")
 
