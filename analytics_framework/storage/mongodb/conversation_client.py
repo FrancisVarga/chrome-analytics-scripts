@@ -310,15 +310,40 @@ class MongoDBConversationClient:
         if "created_at" not in message_data:
             message_data["created_at"] = datetime.now().isoformat()
         
-        return self.base_client.update_one(
+        # Prepare message for storage in the messages array
+        message_for_array = {
+            "message_id": message_data.get("message_id"),
+            "sequence_number": message_data.get("sequence_number", 0),
+            "role": message_data.get("role", "unknown"),
+            "content": message_data.get("content", ""),
+            "tokens": message_data.get("tokens", 0),
+            "price": message_data.get("price", 0.0),
+            "created_at": message_data.get("created_at"),
+            "model_id": message_data.get("model_id"),
+            "parent_message_id": message_data.get("parent_message_id"),
+            "metadata": message_data.get("metadata", {})
+        }
+        
+        # Update conversation with the new message
+        result = self.base_client.update_one(
             self.collection,
             {"_id": conversation_id},
             {
-                "$push": {"messages": message_data},
+                "$push": {"messages": message_for_array},
                 "$inc": {"message_count": 1},
                 "$set": {"updated_at": datetime.now().isoformat()}
             }
         )
+        
+        # Update conversation metrics if tokens or price are present
+        if message_data.get("tokens", 0) > 0 or message_data.get("price", 0.0) > 0:
+            self.update_conversation_metrics(
+                conversation_id,
+                total_tokens=message_data.get("tokens", 0),
+                total_price=message_data.get("price", 0.0)
+            )
+        
+        return result
     
     def update_conversation_metrics(
         self,
