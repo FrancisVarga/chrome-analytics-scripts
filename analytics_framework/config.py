@@ -75,7 +75,10 @@ CUDA_VISIBLE_DEVICES = os.getenv("CUDA_VISIBLE_DEVICES", "0")
 # Batch Processing Configuration
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "100"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
-RETRY_DELAY = int(os.getenv("RETRY_DELAY", "2"))
+# Strip comments from RETRY_DELAY value
+retry_delay_str = os.getenv("RETRY_DELAY", "2")
+retry_delay_str = retry_delay_str.split('#')[0].strip()
+RETRY_DELAY = int(retry_delay_str)
 
 # Logging Configuration
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

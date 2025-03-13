@@ -155,16 +155,29 @@ The Conversation Analytics Framework follows a modular, pipeline-based architect
 - Provides resource management and throttling
 - Handles task distribution and collection
 
+**HTTP Client** (`analytics_framework/utils/http_client.py`)
+
+- Provides a robust and flexible way to make HTTP requests
+- Supports parallel requests for improved performance
+- Implements automatic retries with exponential backoff
+- Handles response processing and error management
+- Includes batch processing for large numbers of requests
+- Supports context manager pattern for resource management
+
 **Design Patterns:**
 
 - Singleton Pattern: Ensures single instance of state manager
 - Worker Pool Pattern: Manages concurrent execution
 - Command Pattern: Encapsulates processing tasks
+- Adapter Pattern: Provides a consistent interface to HTTP operations
+- Decorator Pattern: Adds functionality to HTTP requests (retries, logging)
+- Strategy Pattern: Allows for different request processing strategies
 
 ## Data Flow
 
 1. **Data Collection**
-   - NocoDB API client fetches conversation data
+   - NocoDB API client fetches conversation data using the HTTP client
+   - Multiple requests are made in parallel for improved performance
    - Data is validated against expected schema
    - Processing state is updated to track progress
 
@@ -216,6 +229,8 @@ The framework implements multi-threading to improve performance:
 - **Task Distribution**: Divides work into manageable chunks
 - **Resource Management**: Controls resource utilization
 - **Synchronization**: Ensures thread-safe operations
+- **Parallel HTTP Requests**: Makes multiple HTTP requests simultaneously
+- **Batch Processing**: Processes large numbers of requests in configurable batches
 
 ### State Management
 
@@ -238,20 +253,24 @@ The framework uses environment variables for configuration:
 ## Performance Considerations
 
 1. **Batch Processing**: Data is processed in batches to optimize throughput
-2. **Connection Pooling**: Database connections are reused for efficiency
+2. **Connection Pooling**: Database connections and HTTP sessions are reused for efficiency
 3. **Bulk Operations**: Multiple records are processed in a single operation
 4. **Indexing Strategy**: Carefully designed indexes improve query performance
 5. **Partitioning**: Data is partitioned by date for efficient querying
 6. **Compression**: Data is compressed to reduce storage and transfer costs
 7. **Caching**: Frequently accessed data is cached for faster access
 8. **Asynchronous Operations**: Non-blocking operations improve throughput
+9. **Parallel HTTP Requests**: Multiple HTTP requests are made simultaneously to improve I/O-bound operations
+10. **Configurable Concurrency**: Thread counts and batch sizes are configurable based on workload and resources
 
 ## Error Handling Strategy
 
-1. **Retry Mechanism**: Automatic retries for transient failures
+1. **Retry Mechanism**: Automatic retries for transient failures with exponential backoff
 2. **Circuit Breaker**: Prevents cascading failures
 3. **Graceful Degradation**: Continues operation with reduced functionality
 4. **Comprehensive Logging**: Detailed logs for debugging
 5. **Error Classification**: Different strategies for different error types
 6. **Transaction Management**: Ensures data consistency
 7. **Monitoring and Alerting**: Proactive notification of issues
+8. **Partial Success Handling**: Processes successful responses even when some requests fail
+9. **Error Aggregation**: Collects and reports errors from parallel operations
