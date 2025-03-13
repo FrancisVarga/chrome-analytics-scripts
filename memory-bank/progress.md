@@ -175,6 +175,10 @@ The Conversation Analytics Framework is in the early stages of development, with
 4. **Error Handling**: Comprehensive error handling and recovery mechanisms are not yet implemented.
 5. **Testing**: Unit tests and integration tests are not yet implemented.
 
+## Recently Fixed Issues
+
+1. **MongoDB Client Interface Consistency**: Fixed an issue in `scripts/store_sample_data/storage.py` where it was trying to use a `bulk_write` method directly on the `MongoDBConversationClient` object, but this method only exists in the `MongoDBBaseClient`. The fix involved updating the code to use `mongodb_client.base_client.bulk_write(mongodb_client.conversation.collection, bulk_operations)` instead of `mongodb_client.conversation.bulk_write(bulk_operations)`.
+
 ## Next Priorities
 
 Based on the current status and project timeline, the following priorities have been identified for immediate focus:

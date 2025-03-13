@@ -7,6 +7,7 @@ python-dotenv==1.0.1
 pandas==2.2.3
 pyarrow==19.0.1
 fastparquet==2024.11.0
+polars==1.2.1
 
 # AWS dependencies (for S3 storage)
 boto3==1.37.1
@@ -88,6 +89,8 @@ sympy==1.13.1
 torch==2.6.0+cu126
 torchaudio==2.6.0+cu126
 torchvision==0.21.0+cu126
+polars-u64-idx==1.24.0
+setuptools==70.2.0
 
 # New dependencies added automatically
 -e file:///C:/Users/spiraluser/NeoProjects/chrome-analytics-scripts

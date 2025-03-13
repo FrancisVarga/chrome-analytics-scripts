@@ -99,8 +99,19 @@ class DataProcessor:
                 "price": msg.get('total_price', 0),
                 "created_at": msg.get('created_at'),
                 "model_id": msg.get('model_id'),
-                "parent_message_id": msg.get('parent_message_id')
+                "parent_message_id": msg.get('parent_message_id'),
+                "metadata": msg.get('message_metadata', {})
             }
+            
+            # Ensure metadata is a dictionary
+            if isinstance(processed_message["metadata"], str):
+                try:
+                    processed_message["metadata"] = self._parse_json_field(processed_message["metadata"], 'message_metadata')
+                except Exception:
+                    processed_message["metadata"] = {}
+            elif processed_message["metadata"] is None:
+                processed_message["metadata"] = {}
+                
             processed_messages.append(processed_message)
             
         # Parse JSON inputs

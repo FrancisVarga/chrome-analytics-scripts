@@ -6,6 +6,14 @@
 
 This is a critical directive for all development work on this project. Do not spend time fixing linting errors or issues. Focus on functionality and feature implementation instead.
 
+**FOLLOW THE GENERAL RULES OF DEVELOPMENT**
+
+Adhere to standard development practices and conventions. Write clean, maintainable code that follows established patterns and best practices.
+
+**FOLLOW THE KISS PRINCIPLE**
+
+Keep It Simple, Stupid. Always prefer simpler solutions over complex ones. Avoid over-engineering and unnecessary complexity. Focus on readability and maintainability.
+
 **DO NOT SHOW IMPLEMENTATION SUMMARIES OR "TASK COMPLETED" SUMMARIES**
 
 When completing tasks, do not include phrases like "I've successfully implemented..." or provide task completion summaries. Focus only on the technical implementation details and avoid meta-commentary about the work process.
@@ -114,7 +122,9 @@ Based on the project files and TODO list, the following recent decisions have be
 
 Based on the project files and TODO list, the following challenges are currently being addressed:
 
-1. **NocoDB API Integration**: Implementing a robust API client that can handle pagination, filtering, and error recovery.
+1. **MongoDB Client Interface Consistency**: Fixed an issue where `scripts/store_sample_data/storage.py` was trying to use a `bulk_write` method directly on the `MongoDBConversationClient` object, but this method only exists in the `MongoDBBaseClient`. The fix involved updating the code to use `mongodb_client.base_client.bulk_write(mongodb_client.conversation.collection, bulk_operations)` instead of `mongodb_client.conversation.bulk_write(bulk_operations)`.
+
+2. **NocoDB API Integration**: Implementing a robust API client that can handle pagination, filtering, and error recovery.
 
 2. **Data Processing Pipeline**: Designing and implementing an efficient data processing pipeline that can handle large volumes of conversation data.
 

@@ -135,7 +135,7 @@ def process_conversation_batch(
         existing_user_analytics = {}
         
         for user_id in user_ids:
-            user_doc = mongo_client.find_one(
+            user_doc = mongo_client.base_client.find_one(
                 MONGODB_USER_ANALYTICS_COLLECTION,
                 {"_id": user_id}
             )
@@ -157,12 +157,9 @@ def process_conversation_batch(
         if mongo_client:
             for doc in processed_docs:
                 try:
-                    mongo_client.update_one(
-                        MONGODB_CONVERSATIONS_COLLECTION,
-                        {"_id": doc["_id"]},
-                        {"$set": doc},
-                        upsert=True
-                    )
+                    # Use the conversation client to save the conversation
+                    # This ensures messages are properly stored in the messages array
+                    mongo_client.conversation.save_conversation(doc)
                     
                     # Update processing state
                     processing_state.update_last_processed(
@@ -180,7 +177,7 @@ def process_conversation_batch(
             # Store user analytics in MongoDB
             for user_doc in updated_user_analytics:
                 try:
-                    mongo_client.update_one(
+                    mongo_client.base_client.update_one(
                         MONGODB_USER_ANALYTICS_COLLECTION,
                         {"_id": user_doc["_id"]},
                         {"$set": user_doc},
@@ -193,7 +190,7 @@ def process_conversation_batch(
             all_reports = daily_reports + weekly_reports + monthly_reports
             for report in all_reports:
                 try:
-                    mongo_client.update_one(
+                    mongo_client.base_client.update_one(
                         MONGODB_ANALYTICS_REPORTS_COLLECTION,
                         {"_id": report["_id"]},
                         {"$set": report},

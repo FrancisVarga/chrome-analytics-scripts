@@ -73,7 +73,7 @@ except ValueError:
 CUDA_VISIBLE_DEVICES = os.getenv("CUDA_VISIBLE_DEVICES", "0")
 
 # Batch Processing Configuration
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "100"))
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "5000"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 # Strip comments from RETRY_DELAY value
 retry_delay_str = os.getenv("RETRY_DELAY", "2")
