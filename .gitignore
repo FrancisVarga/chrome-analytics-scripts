@@ -134,3 +134,4 @@ ehthumbs.db
 Desktop.ini
 sample_data/
 logs/
+sync_url_state.json
