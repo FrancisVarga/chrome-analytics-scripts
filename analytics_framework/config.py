@@ -60,7 +60,16 @@ PROCESSING_THREADS = int(os.getenv("PROCESSING_THREADS", "4"))
 
 # GPU Configuration
 ENABLE_GPU = os.getenv("ENABLE_GPU", "false").lower() == "true"
-GPU_MEMORY_LIMIT = int(os.getenv("GPU_MEMORY_LIMIT", "4096"))
+try:
+    # Try to parse the GPU_MEMORY_LIMIT as an integer
+    gpu_memory_limit_str = os.getenv("GPU_MEMORY_LIMIT", "4096")
+    # Remove any comments or whitespace
+    gpu_memory_limit_str = gpu_memory_limit_str.split('#')[0].strip()
+    GPU_MEMORY_LIMIT = int(gpu_memory_limit_str)
+except ValueError:
+    # If parsing fails, use the default value
+    print(f"Warning: Invalid GPU_MEMORY_LIMIT value '{os.getenv('GPU_MEMORY_LIMIT')}'. Using default of 4096.")
+    GPU_MEMORY_LIMIT = 4096
 CUDA_VISIBLE_DEVICES = os.getenv("CUDA_VISIBLE_DEVICES", "0")
 
 # Batch Processing Configuration

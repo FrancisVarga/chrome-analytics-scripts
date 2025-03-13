@@ -92,7 +92,7 @@ def get_yesterday_range() -> tuple:
         tuple: (start_date, end_date) for yesterday
     """
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    yesterday = today - timedelta(days=1)
+    yesterday = today - timedelta(days=14)
     yesterday_end = today - timedelta(microseconds=1)
     
     return yesterday.isoformat(), yesterday_end.isoformat()
@@ -108,6 +108,21 @@ def prepare_conversation_for_workflow(conversation: Dict[str, Any]) -> Dict[str,
     Returns:
         Dict with formatted conversation data suitable for Dify
     """
+    import json
+    
+    # Helper function to ensure a value is JSON serializable
+    def ensure_serializable(value):
+        try:
+            json.dumps(value)
+            return value
+        except (TypeError, OverflowError):
+            if isinstance(value, dict):
+                return {k: ensure_serializable(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [ensure_serializable(item) for item in value]
+            else:
+                return str(value)
+    
     # Extract key fields that would be relevant for analysis
     messages = []
     for msg in conversation.get('messages', []):
@@ -136,8 +151,8 @@ def prepare_conversation_for_workflow(conversation: Dict[str, Any]) -> Dict[str,
             'created_at': msg.get('created_at', '')
         })
     
-    # Return the processed conversation
-    return {
+    # Prepare the conversation data
+    conversation_data = {
         'conversation_id': conversation.get('_id', ''),
         'app_id': conversation.get('app_id', ''),
         'model_id': conversation.get('model_id', ''),
@@ -147,8 +162,16 @@ def prepare_conversation_for_workflow(conversation: Dict[str, Any]) -> Dict[str,
         'total_tokens': conversation.get('total_tokens', 0),
         'total_price': conversation.get('total_price', 0),
         'messages': messages,
-        'inputs': conversation.get('inputs', {})
+        'inputs': ensure_serializable(conversation.get('inputs', {}))
     }
+    
+    # Ensure the entire object is JSON serializable
+    try:
+        json.dumps(conversation_data)
+        return conversation_data
+    except (TypeError, OverflowError):
+        logging.warning("Conversation data contains non-serializable values, sanitizing...")
+        return ensure_serializable(conversation_data)
 
 
 def process_conversation(
@@ -169,6 +192,8 @@ def process_conversation(
     Returns:
         Dict with processing results
     """
+    import json
+    
     # Prepare conversation data for the workflow
     workflow_input = {
         'content': prepare_conversation_for_workflow(conversation)
@@ -196,10 +221,21 @@ def process_conversation(
                         chunks.append(chunk["answer"])
                 elif chunk.get("event") == "workflow_finished":
                     if "outputs" in chunk:
+                        # Ensure outputs are JSON-serializable
+                        try:
+                            outputs = chunk.get("outputs", {})
+                            # Test JSON serialization
+                            json.dumps(outputs)
+                            sanitized_outputs = outputs
+                        except (TypeError, OverflowError):
+                            # If not serializable, convert to string
+                            logging.warning("Workflow outputs contain non-serializable data, converting to string")
+                            sanitized_outputs = json.loads(json.dumps(str(outputs)))
+                            
                         return {
                             "success": True,
                             "conversation_id": conversation.get('_id', ''),
-                            "result": chunk.get("outputs", {}),
+                            "result": sanitized_outputs,
                             "streaming_content": "".join(chunks),
                             "processed_at": datetime.now().isoformat(),
                             "workflow_id": workflow_id
@@ -214,12 +250,11 @@ def process_conversation(
                 "workflow_id": workflow_id
             }
         else:
-            import json
             # For blocking mode
             logging.info(f"Executing workflow {workflow_id} in blocking mode")
             logging.info(f"Executing workflow {workflow_id} for conversation {conversation.get('_id', '')}")
             logging.debug(f"Triggering Dify workflow with inputs: {json.dumps(workflow_input, indent=2)}")
-            workflow_input["content"] = json.dumps(workflow_input["content"], indent=2)
+            workflow_input["conversation"] = json.dumps(workflow_input["content"], indent=2)
             result = dify_client.execute_workflow(
                 inputs=workflow_input,
                 response_mode="blocking",
@@ -227,10 +262,24 @@ def process_conversation(
             )
             
             if "data" in result and "outputs" in result["data"]:
+                # Ensure outputs are JSON-serializable
+                try:
+                    outputs = result["data"]["outputs"]
+                    # Test JSON serialization
+                    json.dumps(outputs)
+                    sanitized_outputs = outputs
+                except (TypeError, OverflowError):
+                    # If not serializable, convert to string
+                    logging.warning("Workflow outputs contain non-serializable data, converting to string")
+                    try:
+                        sanitized_outputs = json.loads(json.dumps(str(outputs)))
+                    except:
+                        sanitized_outputs = str(outputs)
+                        
                 return {
                     "success": True,
                     "conversation_id": conversation.get('_id', ''),
-                    "result": result["data"]["outputs"],
+                    "result": sanitized_outputs,
                     "workflow_run_id": result.get("workflow_run_id", ""),
                     "processed_at": datetime.now().isoformat(),
                     "workflow_id": workflow_id
@@ -259,7 +308,7 @@ def process_conversation(
 def save_dify_result_to_mongodb(
     mongodb_client: MongoDBClient,
     result: Dict[str, Any],
-    collection_name: str = "dify_workflow_results"
+    collection_name: str = "success_conversations"
 ) -> None:
     """
     Save Dify workflow result to MongoDB.
@@ -270,10 +319,48 @@ def save_dify_result_to_mongodb(
         collection_name: Name of the collection to save to
     """
     try:
+        import json
+        from bson import json_util
+        
+        # Create a sanitized copy of the result
+        sanitized_result = {}
+        
+        # Process each key in the result to ensure JSON compatibility
+        for key, value in result.items():
+            try:
+                # Test if the value is JSON serializable
+                json.dumps(value)
+                sanitized_result[key] = value
+            except (TypeError, OverflowError):
+                # If not serializable, convert to string representation
+                try:
+                    # Try using BSON's json_util for MongoDB-compatible serialization
+                    sanitized_result[key] = json_util.loads(json_util.dumps(value))
+                except Exception:
+                    # Fallback to string representation if json_util fails
+                    sanitized_result[key] = str(value)
+                    logging.warning(f"Converted non-serializable value for key '{key}' to string")
+        
+        # Create document with sanitized result
         document = {
-            "_id": f"{result['conversation_id']}_{result['workflow_id']}",
-            **result
+            "_id": f"{sanitized_result['conversation_id']}_{sanitized_result['workflow_id']}",
+            **sanitized_result
         }
+        
+        # Validate the document is JSON serializable
+        try:
+            json.dumps(document)
+        except (TypeError, OverflowError) as e:
+            logging.error(f"Document still not JSON serializable after sanitization: {str(e)}")
+            # Create a simplified document with just the essential fields
+            document = {
+                "_id": f"{result['conversation_id']}_{result['workflow_id']}",
+                "conversation_id": result.get('conversation_id', ''),
+                "workflow_id": result.get('workflow_id', ''),
+                "success": result.get('success', False),
+                "processed_at": result.get('processed_at', datetime.now().isoformat()),
+                "error": "Document contained non-serializable data"
+            }
         
         # Store the result using the base client's replace_one method
         mongodb_client.base_client.replace_one(
@@ -392,18 +479,27 @@ def main():
             save_dify_result_to_mongodb(mongodb_client, result)
             
             # Also update the conversation document with a reference to the analysis
-            mongodb_client.base_client.update_one(
-                "conversations",
-                {"_id": result["conversation_id"]},
-                {
-                    "$set": {
-                        "dify_analysis_ref": f"{result['conversation_id']}_{result['workflow_id']}_{result['processed_at']}",
-                        "dify_analysis_success": result["success"],
-                        "dify_analysis_workflow_id": result["workflow_id"],
-                        "dify_analysis_processed_at": result["processed_at"]
-                    }
+            try:
+                # Create a JSON-serializable update document
+                update_doc = {
+                    "dify_analysis_ref": f"{result['conversation_id']}_{result['workflow_id']}_{result['processed_at']}",
+                    "dify_analysis_success": result["success"],
+                    "dify_analysis_workflow_id": result["workflow_id"],
+                    "dify_analysis_processed_at": result["processed_at"]
                 }
-            )
+                
+                # Ensure the update document is JSON-serializable
+                import json
+                json.dumps(update_doc)  # This will raise an exception if not serializable
+                
+                mongodb_client.base_client.update_one(
+                    "conversations",
+                    {"_id": result["conversation_id"]},
+                    {"$set": update_doc}
+                )
+                logging.info(f"Updated conversation {result['conversation_id']} with analysis reference")
+            except Exception as e:
+                logging.error(f"Error updating conversation with analysis reference: {str(e)}")
     
     # Log summary
     logging.info(f"Processing complete. Processed: {processed_count}, Success: {success_count}, Errors: {error_count}")
