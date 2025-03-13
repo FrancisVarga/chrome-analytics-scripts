@@ -1,3 +1,184 @@
 {
-    "content": "What is the sentiment analysis of this conversation?"
+    "content": {
+        "conversation_id": "d445dc14-137d-473e-a134-32c3d42c659b",
+        "app_id": "0df86885-c891-445e-b0bf-bd42ddfa545f",
+        "model_id": "chatgpt-4o-latest",
+        "model_provider": "openai",
+        "created_at": "2025-03-12T00:07:14+00:00",
+        "message_count": 0,
+        "total_tokens": 0,
+        "total_price": 0,
+        "messages": [
+            {
+                "role": "unknown",
+                "content": "{'role': 'system', 'text': 'Use the following context as your learned knowledge, inside <context></context> XML tags.\\n\\n<context>\\n\\n</context>\\n\\nWhen answer to user:\\n- If you don\\'t know, just say that you don\\'t know.\\n- If you don\\'t know when you are not sure, ask for clarification.\\nAvoid mentioning that you obtained the information from the context.\\nAnd answer according to the language of the user\\'s question.\\n\\nYou are a senior customer service agent at W88, don\\'t answer any question outside of W88, fluent in Thai. \\n\\nIf the query is not related to W88\\'s services (gaming, betting, account management, technical issues, etc.) or user is insulting and impolite:\\n   - Politely inform the customer that you are unable to assist\\n   - Respond with \"#AGENT\" \\n\\nIf you cannot assist or answer the query, make sure to include \"#AGENT\" in your response.\\n\\nWarmly welcome users base on there VIP status, resolve their issues efficiently, and promote tailored promotions based on preferences and VIP level. Always respond first in Thai.\\n\\nIf the customer ask about there deposit status output the list formatted, show only the status and the amount, do NOT display date and the id, highlight the important information and make it easy to read for mobile devices.\\n\\nULTRA IMPORTANT: DO NOT PROMOTE ANY PROMPOTIONS, PLS ANSWER POLITE, WARM, SUPPORTIVE TO CONTACT OUR AGENTS AND WITH #AGENT.\\n\\nreplace all domains with the https://m.secure2cast.net domain.\\n\\nfor deposit remove information about credit card.\\n\\nVariables:\\nusername: User\\'s unique identifier PIPEDANAI\\nlang: User\\'s preferred language th-th\\ncurrency: User\\'s primary currency THB\\nrGroup: VIP level (BLUE, GOLD, PLATINUM, DIAMOND) VIPB\\nuser balance: 0.40\\nuser rewards points: 136.00\\nlist of latest deposits: [{\"id\":\"1106846287323\",\"status\":\"\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08\",\"date\":\"2025-03-11 00:02:05\",\"url\":\"https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/1106846287323\",\"amount\":{\"submited\":\"500.00\",\"received\":\"500.00\"}},{\"id\":\"1106846234491\",\"status\":\"\u0e25\u0e49\u0e21\u0e40\u0e2b\u0e25\u0e27\",\"date\":\"2025-03-11 00:00:54\",\"url\":\"https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/1106846234491\",\"amount\":{\"submited\":\"500.00\",\"received\":\"0.00\"}},{\"id\":\"1106841233296\",\"status\":\"\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08\",\"date\":\"2025-03-10 19:23:54\",\"url\":\"https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/1106841233296\",\"amount\":{\"submited\":\"500.00\",\"received\":\"500.00\"}},{\"id\":\"1106841209733\",\"status\":\"\u0e25\u0e49\u0e21\u0e40\u0e2b\u0e25\u0e27\",\"date\":\"2025-03-10 19:22:40\",\"url\":\"https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/1106841209733\",\"amount\":{\"submited\":\"500.00\",\"received\":\"0.00\"}},{\"id\":\"1106841150078\",\"status\":\"\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08\",\"date\":\"2025-03-10 19:14:38\",\"url\":\"https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/1106841150078\",\"amount\":{\"submited\":\"100.00\",\"received\":\"100.00\"}}]\\nlist of latest withdrawals: [{\"id\":\"2106842156953\",\"status\":\"\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08\",\"date\":\"2025-03-10 20:15:29\",\"url\":\"https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/2106842156953\",\"amount\":{\"submited\":\"700.00\",\"received\":\"700.00\"}},{\"id\":\"2106802150169\",\"status\":\"\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08\",\"date\":\"2025-03-09 04:35:51\",\"url\":\"https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/2106802150169\",\"amount\":{\"submited\":\"500.00\",\"received\":\"500.00\"}}]\\norigin domain: https://m.secure2cast.net\\nlist of user deposit methods: [{\"id\":\"110101\",\"group\":\"Bank Transfer\",\"name\":\"\u0e23\u0e31\u0e1a\u0e1a\u0e31\u0e0d\u0e0a\u0e35/\u0e40\u0e15\u0e34\u0e21\u0e40\u0e07\u0e34\u0e19 \",\"url\":\"https://m.secure2cast.net/payments/web/#/v3/deposit/110101\"},{\"id\":\"12029997\",\"group\":\"Others\",\"name\":\"LineChatBot\",\"url\":\"https://m.secure2cast.net/payments/web/#/v3/deposit/12029997\"},{\"id\":\"12041380\",\"group\":\"QR Codes\",\"name\":\"QR Code\",\"url\":\"https://m.secure2cast.net/payments/web/#/v3/deposit/12041380\"},{\"id\":\"999971\",\"group\":\"QR Codes\",\"name\":\"QRCodeV2\",\"url\":\"https://m.secure2cast.net/payments/web/#/v3/deposit/999971\"},{\"id\":\"999976\",\"group\":\"Internet Banking\",\"name\":\"QuickOnlineV2\",\"url\":\"https://m.secure2cast.net/payments/web/#/v3/deposit/999976\"},{\"id\":\"1202606\",\"group\":\"Gamecard\",\"name\":\"Top-Up Card\",\"url\":\"https://m.secure2cast.net/payments/web/#/v3/deposit/1202606\"}]\\nlist of user withdrawal methods: [{\"id\":\"210602\",\"group\":\"Bank Transfer\",\"name\":\"\u0e16\u0e2d\u0e19\u0e40\u0e07\u0e34\u0e19\u0e14\u0e48\u0e27\u0e19\",\"url\":\"https://m.secure2cast.net/payments/web/#/v3/withdrawal/210602\"},{\"id\":\"2208969\",\"group\":\"Gamecard\",\"name\":\"GameCardScratchCard\",\"url\":\"https://m.secure2cast.net/payments/web/#/v3/withdrawal/2208969\"}]\\nlist of w88 bank accounts, always display info: [{\"displayName\":\"KTB-89813\",\"bankName\":\"\u0e18\u0e19\u0e32\u0e04\u0e32\u0e23\u0e01\u0e23\u0e38\u0e07\u0e44\u0e17\u0e22\",\"bankBranch\":\"\",\"accountName\":\"Pornwilailuk Phoomiphak\",\"accountNumber\":\"9680189813\"},{\"displayName\":\"SCB-70784\",\"bankName\":\"\u0e18\u0e19\u0e32\u0e04\u0e32\u0e23\u0e44\u0e17\u0e22\u0e1e\u0e32\u0e13\u0e34\u0e0a\u0e22\u0e4c\",\"bankBranch\":\"\",\"accountName\":\"Sarihah Diyoh\",\"accountNumber\":\"7044070784\"},{\"displayName\":\"TTB-56860\",\"bankName\":\"\u0e18\u0e19\u0e32\u0e04\u0e32\u0e23\u0e17\u0e2b\u0e32\u0e23\u0e44\u0e17\u0e22\u0e18\u0e19\u0e0a\u0e32\u0e15\",\"bankBranch\":\"\",\"accountName\":\"Sakariya Mama\",\"accountNumber\":\"3997056860\"},{\"displayName\":\"BBL-73826\",\"bankName\":\"\u0e18\u0e19\u0e32\u0e04\u0e32\u0e23\u0e01\u0e23\u0e38\u0e07\u0e40\u0e17\u0e1e\",\"bankBranch\":\"\",\"accountName\":\"Korsa A Wae\",\"accountNumber\":\"6040473826\"}]\\n\\nVIP Levels:\\nBlue: Basic support, general promos\\nGold: Enhanced support, tailored promos\\nPlatinum: Priority support, high-value promos\\nDiamond: Top-tier personalized service, exclusive offers, send a longer welcome message and more welcome and personalized\\n\\nKey URLs:\\nPromotions: View Promotions https://m.secure2cast.net/pwa-promotions/web/#/?category=all\\n\\nRemember, your goal is to provide efficient, personalized service to valued W88 customers. Maintain a warm, professional tone and stay within the scope of W88\\'s services. Always thank the customer for their business.\\n', 'files': []} {'role': 'user', 'text': '\u0e09\u0e31\u0e19\u0e15\u0e49\u0e2d\u0e07\u0e01\u0e32\u0e23\u0e16\u0e2d\u0e19\u0e40\u0e07\u0e34\u0e19', 'files': []}",
+                "created_at": "2025-03-13T05:32:10.575570"
+            }
+        ],
+        "inputs": {
+            "username": "PIPEDANAI",
+            "lang": "th-th",
+            "currency": "THB",
+            "rGroup": "VIPB",
+            "origin": "https://m.secure2cast.net",
+            "balance": 0.4,
+            "rewardsPoints": 136.0,
+            "listDeposit": [
+                {
+                    "id": 1106846287323,
+                    "status": "\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08",
+                    "date": "2025-03-11 00:02:05",
+                    "url": "https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/1106846287323",
+                    "amount": {
+                        "submited": 500.0,
+                        "received": 500.0
+                    }
+                },
+                {
+                    "id": 1106846234491,
+                    "status": "\u0e25\u0e49\u0e21\u0e40\u0e2b\u0e25\u0e27",
+                    "date": "2025-03-11 00:00:54",
+                    "url": "https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/1106846234491",
+                    "amount": {
+                        "submited": 500.0,
+                        "received": 0.0
+                    }
+                },
+                {
+                    "id": 1106841233296,
+                    "status": "\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08",
+                    "date": "2025-03-10 19:23:54",
+                    "url": "https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/1106841233296",
+                    "amount": {
+                        "submited": 500.0,
+                        "received": 500.0
+                    }
+                },
+                {
+                    "id": 1106841209733,
+                    "status": "\u0e25\u0e49\u0e21\u0e40\u0e2b\u0e25\u0e27",
+                    "date": "2025-03-10 19:22:40",
+                    "url": "https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/1106841209733",
+                    "amount": {
+                        "submited": 500.0,
+                        "received": 0.0
+                    }
+                },
+                {
+                    "id": 1106841150078,
+                    "status": "\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08",
+                    "date": "2025-03-10 19:14:38",
+                    "url": "https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/1106841150078",
+                    "amount": {
+                        "submited": 100.0,
+                        "received": 100.0
+                    }
+                }
+            ],
+            "listWithdrawal": [
+                {
+                    "id": 2106842156953,
+                    "status": "\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08",
+                    "date": "2025-03-10 20:15:29",
+                    "url": "https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/2106842156953",
+                    "amount": {
+                        "submited": 700.0,
+                        "received": 700.0
+                    }
+                },
+                {
+                    "id": 2106802150169,
+                    "status": "\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08",
+                    "date": "2025-03-09 04:35:51",
+                    "url": "https://m.secure2cast.net/payments/web/#/history/DepositWithdraw/2106802150169",
+                    "amount": {
+                        "submited": 500.0,
+                        "received": 500.0
+                    }
+                }
+            ],
+            "listDepositMethods": [
+                {
+                    "id": 110101,
+                    "group": "Bank Transfer",
+                    "name": "\u0e23\u0e31\u0e1a\u0e1a\u0e31\u0e0d\u0e0a\u0e35/\u0e40\u0e15\u0e34\u0e21\u0e40\u0e07\u0e34\u0e19 ",
+                    "url": "https://m.secure2cast.net/payments/web/#/v3/deposit/110101"
+                },
+                {
+                    "id": 12029997,
+                    "group": "Others",
+                    "name": "LineChatBot",
+                    "url": "https://m.secure2cast.net/payments/web/#/v3/deposit/12029997"
+                },
+                {
+                    "id": 12041380,
+                    "group": "QR Codes",
+                    "name": "QR Code",
+                    "url": "https://m.secure2cast.net/payments/web/#/v3/deposit/12041380"
+                },
+                {
+                    "id": 999971,
+                    "group": "QR Codes",
+                    "name": "QRCodeV2",
+                    "url": "https://m.secure2cast.net/payments/web/#/v3/deposit/999971"
+                },
+                {
+                    "id": 999976,
+                    "group": "Internet Banking",
+                    "name": "QuickOnlineV2",
+                    "url": "https://m.secure2cast.net/payments/web/#/v3/deposit/999976"
+                },
+                {
+                    "id": 1202606,
+                    "group": "Gamecard",
+                    "name": "Top-Up Card",
+                    "url": "https://m.secure2cast.net/payments/web/#/v3/deposit/1202606"
+                }
+            ],
+            "listWithdrawalMethods": [
+                {
+                    "id": 210602,
+                    "group": "Bank Transfer",
+                    "name": "\u0e16\u0e2d\u0e19\u0e40\u0e07\u0e34\u0e19\u0e14\u0e48\u0e27\u0e19",
+                    "url": "https://m.secure2cast.net/payments/web/#/v3/withdrawal/210602"
+                },
+                {
+                    "id": 2208969,
+                    "group": "Gamecard",
+                    "name": "GameCardScratchCard",
+                    "url": "https://m.secure2cast.net/payments/web/#/v3/withdrawal/2208969"
+                }
+            ],
+            "banks": [
+                {
+                    "displayName": "KTB-89813",
+                    "bankName": "\u0e18\u0e19\u0e32\u0e04\u0e32\u0e23\u0e01\u0e23\u0e38\u0e07\u0e44\u0e17\u0e22",
+                    "bankBranch": "",
+                    "accountName": "Pornwilailuk Phoomiphak",
+                    "accountNumber": 9680189813
+                },
+                {
+                    "displayName": "SCB-70784",
+                    "bankName": "\u0e18\u0e19\u0e32\u0e04\u0e32\u0e23\u0e44\u0e17\u0e22\u0e1e\u0e32\u0e13\u0e34\u0e0a\u0e22\u0e4c",
+                    "bankBranch": "",
+                    "accountName": "Sarihah Diyoh",
+                    "accountNumber": 7044070784
+                },
+                {
+                    "displayName": "TTB-56860",
+                    "bankName": "\u0e18\u0e19\u0e32\u0e04\u0e32\u0e23\u0e17\u0e2b\u0e32\u0e23\u0e44\u0e17\u0e22\u0e18\u0e19\u0e0a\u0e32\u0e15",
+                    "bankBranch": "",
+                    "accountName": "Sakariya Mama",
+                    "accountNumber": 3997056860
+                },
+                {
+                    "displayName": "BBL-73826",
+                    "bankName": "\u0e18\u0e19\u0e32\u0e04\u0e32\u0e23\u0e01\u0e23\u0e38\u0e07\u0e40\u0e17\u0e1e",
+                    "bankBranch": "",
+                    "accountName": "Korsa A Wae",
+                    "accountNumber": 6040473826
+                }
+            ]
+        }
+    }
 }

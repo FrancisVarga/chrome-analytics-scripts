@@ -160,6 +160,8 @@ def trigger_workflow(args: argparse.Namespace) -> None:
         logging.info(f"Triggering Dify workflow with inputs: {json.dumps(inputs, indent=2)}")
         
         if response_mode == "blocking":
+            jsonString = json.dumps(inputs["content"], indent=2)
+            inputs["content"] = jsonString
             # Execute workflow in blocking mode
             result = client.execute_workflow(
                 inputs=inputs,
