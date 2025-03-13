@@ -80,11 +80,6 @@ yarl==1.18.3
 zict==3.0.0
 zipp==3.21.0
 
-# New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
-
-# New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
 filelock==3.13.1
 mpmath==1.3.0
 networkx==3.3
@@ -95,28 +90,4 @@ torchaudio==2.6.0+cu126
 torchvision==0.21.0+cu126
 
 # New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
-
-# New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
-
-# New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
-
-# New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
-
-# New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
-
-# New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
-
-# New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
-
-# New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
-
-# New dependencies added automatically
--e file:///D:/NeoProjects/chrome-analytics-scripts
+-e file:///C:/Users/spiraluser/NeoProjects/chrome-analytics-scripts
