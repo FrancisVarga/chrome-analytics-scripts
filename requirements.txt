@@ -94,3 +94,6 @@ setuptools==70.2.0
 
 # New dependencies added automatically
 -e file:///C:/Users/spiraluser/NeoProjects/chrome-analytics-scripts
+
+# New dependencies added automatically
+-e file:///D:/NeoProjects/chrome-analytics-scripts
