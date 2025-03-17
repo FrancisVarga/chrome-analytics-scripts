@@ -154,9 +154,9 @@ def extract_messages_from_conversations(conversations: List[Dict[str, Any]]) -> 
     if conversations:
         sample_size = min(5, len(conversations))
         sample_conversations = conversations[:sample_size]
-        with open('tmp/sample_raw_messages.json', 'w', encoding='utf-8') as f:
+        with open('.tmp/sample_raw_messages.json', 'w', encoding='utf-8') as f:
             json.dump(sample_conversations, f, indent=2, ensure_ascii=False)
-        logger.info(f"Saved {sample_size} sample conversations to tmp/sample_raw_messages.json")
+        logger.info(f"Saved {sample_size} sample conversations to .tmp/sample_raw_messages.json")
     
     conversation_messages = []
     total_messages = 0

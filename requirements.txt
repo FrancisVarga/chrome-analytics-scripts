@@ -27,6 +27,7 @@ distributed==2025.2.0
 # Utilities
 tqdm==4.67.1
 tabulate==0.9.0
+flask==3.0.3
 
 # New dependencies added automatically
 aiobotocore==2.21.1
@@ -94,6 +95,9 @@ setuptools==70.2.0
 
 # New dependencies added automatically
 -e file:///C:/Users/spiraluser/NeoProjects/chrome-analytics-scripts
+
+# New dependencies added automatically
+-e file:///D:/NeoProjects/chrome-analytics-scripts
 
 # New dependencies added automatically
 -e file:///D:/NeoProjects/chrome-analytics-scripts
